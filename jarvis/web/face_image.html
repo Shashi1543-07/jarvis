@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Jarvis Holographic Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #hud {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            color: #00e5ff;
+            font-size: 14px;
+            text-shadow: 0 0 5px #00e5ff;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
+        #state-label {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="hud">
+        <div>SYSTEM STATE: <span id="state-label">INITIALIZING</span></div>
+    </div>
+
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="three.min.js"></script>
+
+    <!-- VERTEX SHADER -->
+    <script type="x-shader/x-vertex" id="vertexShader">
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uGlitch;
+
+        void main() {
+            vUv = uv;
+            vec3 pos = position;
+            // Subtle breathing
+            pos.z += sin(uTime * 2.0) * 0.05;
+            // Glitch
+            if(uGlitch > 0.0) {
+                float noise = sin(pos.y * 20.0 + uTime * 20.0);
+                if(noise > 0.9) {
+                    pos.x += sin(uTime * 50.0) * 0.1 * uGlitch;
+                }
+            }
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+    </script>
+
+    <!-- FRAGMENT SHADER -->
+    <script type="x-shader/x-fragment" id="fragmentShader">
+        uniform sampler2D uTexture;
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uIntensity;
+        
+        varying vec2 vUv;
+
+        float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+        }
+
+        void main() {
+            vec2 uv = vUv;
+            
+            // Chromatic aberration
+            float shift = 0.005 * sin(uTime * 5.0);
+            vec4 texR = texture2D(uTexture, uv + vec2(shift, 0.0));
+            vec4 texG = texture2D(uTexture, uv);
+            vec4 texB = texture2D(uTexture, uv - vec2(shift, 0.0));
+            
+            vec4 color = vec4(texR.r, texG.g, texB.b, texG.a);
+            
+            // Scanlines
+            float scanline = sin(uv.y * 150.0 - uTime * 5.0) * 0.5 + 0.5;
+            color.rgb *= 0.8 + 0.2 * scanline;
+            
+            // Noise
+            float noise = random(uv + uTime) * 0.1;
+            color.rgb += noise;
+            
+            // Color tint - Reduced intensity mixing
+            float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 finalColor = mix(color.rgb, uColor * luminance * 1.2, 0.4);
+            
+            // Alpha
+            float alpha = smoothstep(0.1, 0.3, luminance) * uIntensity;
+            
+            // Edge glow
+            float dist = distance(uv, vec2(0.5));
+            alpha *= 1.0 - smoothstep(0.4, 0.5, dist);
+
+            gl_FragColor = vec4(finalColor * uIntensity, alpha);
+        }
+    </script>
+
+    <script>
+        let currentState = 'idle';
+        const stateLabel = document.getElementById('state-label');
+
+        // Reduced intensities
+        const states = {
+            'idle': { color: new THREE.Vector3(0.0, 0.9, 1.0), glitch: 0.0, intensity: 0.8 },
+            'listening': { color: new THREE.Vector3(0.0, 1.0, 0.2), glitch: 0.0, intensity: 1.0 },
+            'thinking': { color: new THREE.Vector3(0.0, 0.5, 1.0), glitch: 0.5, intensity: 0.9 },
+            'speaking': { color: new THREE.Vector3(1.0, 0.6, 0.0), glitch: 0.1, intensity: 1.2 }
+        };
+
+        let targetColor = states['idle'].color;
+        let targetGlitch = 0.0;
+        let targetIntensity = 0.8;
+
+        function updateState(s) {
+            currentState = s;
+            stateLabel.textContent = s.toUpperCase();
+            if (states[s]) {
+                targetColor = states[s].color;
+                targetGlitch = states[s].glitch;
+                targetIntensity = states[s].intensity;
+            }
+        }
+
+        // Expose to global scope for Python
+        window.setState = updateState;
+
+        window.addEventListener('load', function () {
+            if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+                new QWebChannel(qt.webChannelTransport, function (channel) {
+                    window.bridge = channel.objects.bridge;
+                    window.bridge.setState.connect(function (newState) {
+                        const s = newState.toLowerCase();
+                        let visualState = 'idle';
+                        if (s.includes('listen')) visualState = 'listening';
+                        else if (s.includes('process') || s.includes('think')) visualState = 'thinking';
+                        else if (s.includes('speak')) visualState = 'speaking';
+                        updateState(visualState);
+                    });
+                });
+            }
+            updateState('idle');
+        });
+
+        // Three.js Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+        camera.position.z = 2;
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Load Texture - using local file
+        const loader = new THREE.TextureLoader();
+        const texture = loader.load('face.png');
+
+        const uniforms = {
+            uTexture: { value: texture },
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Vector3(0.0, 0.9, 1.0) },
+            uGlitch: { value: 0.0 },
+            uIntensity: { value: 0.8 }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+
+        const geometry = new THREE.PlaneGeometry(3, 3);
+        const plane = new THREE.Mesh(geometry, material);
+        scene.add(plane);
+
+        // Particles
+        const pGeo = new THREE.BufferGeometry();
+        const pCount = 200;
+        const pPos = new Float32Array(pCount * 3);
+        for (let i = 0; i < pCount * 3; i++) pPos[i] = (Math.random() - 0.5) * 10;
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({ size: 0.05, color: 0x00e5ff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
+        const particles = new THREE.Points(pGeo, pMat);
+        scene.add(particles);
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            uniforms.uTime.value += dt;
+            uniforms.uColor.value.lerp(targetColor, dt * 2.0);
+            uniforms.uGlitch.value += (targetGlitch - uniforms.uGlitch.value) * dt * 2.0;
+            uniforms.uIntensity.value += (targetIntensity - uniforms.uIntensity.value) * dt * 2.0;
+
+            if (currentState === 'speaking') {
+                const audioLevel = Math.sin(uniforms.uTime.value * 20.0) * 0.5 + 0.5;
+                uniforms.uIntensity.value = 1.2 + audioLevel * 0.5;
+                plane.scale.setScalar(1.0 + audioLevel * 0.05);
+            } else {
+                plane.scale.setScalar(1.0);
+            }
+            particles.rotation.y += dt * 0.1;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+    </script>
+</body>
+
+</html>

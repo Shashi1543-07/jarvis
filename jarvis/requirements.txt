@@ -1,0 +1,15 @@
+speechrecognition
+pyttsx3
+pyaudio
+pyautogui
+tensorflow
+numpy
+requests
+PyQt5
+google-generativeai
+edge-tts
+faster-whisper
+torch
+numpy
+websockets
+aiofiles

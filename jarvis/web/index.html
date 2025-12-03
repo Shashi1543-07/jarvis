@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS Holographic Face</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00E5FF;
+            font-size: 12px;
+            text-shadow: 0 0 10px #00E5FF;
+            z-index: 100;
+        }
+        
+        .state-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid #00E5FF;
+            color: #00E5FF;
+            text-transform: uppercase;
+            font-size: 14px;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="state-indicator" id="state">INITIALIZING</div>
+    <div id="info">JARVIS v2.0 | Holographic Interface</div>
+
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Delaunator for triangulation -->
+    <script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.0/delaunator.min.js"></script>
+    <!-- GSAP for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <script src="face.js"></script>
+    <script src="animations/idle.js"></script>
+    <script src="animations/listening.js"></script>
+    <script src="animations/thinking.js"></script>
+    <script src="animations/speaking.js"></script>
+    
+    <script>
+        // QWebChannel integration for PyQt5 communication
+        window.onload = function() {
+            if (typeof QWebChannel !== 'undefined') {
+                new QWebChannel(qt.webChannelTransport, function(channel) {
+                    window.bridge = channel.objects.bridge;
+                    
+                    // Listen for state changes from Python
+                    window.bridge.setState.connect(function(state) {
+                        if (window.faceController) {
+                            window.faceController.setState(state);
+                            document.getElementById('state').textContent = state.toUpperCase();
+                        }
+                    });
+                    
+                    window.bridge.setAudioData.connect(function(audioData) {
+                        if (window.faceController) {
+                            window.faceController.setAudioData(audioData);
+                        }
+                    });
+                });
+            }
+            
+            // Initialize the face
+            initFace();
+        };
+    </script>
+</body>
+</html>

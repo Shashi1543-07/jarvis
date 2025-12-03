@@ -1,0 +1,29 @@
+{
+    "long_term": {
+        "favorite_color": "blue",
+        "preferences": {
+            "friend_Avajith": "editor",
+            "friend_Ohm_Sutvanay": "flute master",
+            "creator_full_name": "Shashi Shekar Mishra",
+            "preferred_address_style": "Shashi or Sir",
+            "college": "VNIT Nagpur (Visvesvaraya National Institute of Technology)",
+            "branch": "Electronics and Communication Engineering, First Year"
+        }
+    },
+    "sessions": [
+        {
+            "timestamp": "2025-12-01T19:20:27.622950",
+            "summary": "User asked about the weather and system performance"
+        }
+    ],
+    "tasks": {
+        "build_jarvis": {
+            "created": "2025-12-01T19:20:27.623589",
+            "updated": "2025-12-01T19:20:27.623589",
+            "data": {
+                "description": "Complete Jarvis AI",
+                "status": "in_progress"
+            }
+        }
+    }
+}
