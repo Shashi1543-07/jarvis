@@ -67,3 +67,19 @@ yarn-error.log
 # Gemini / Agent artifacts
 .gemini/
 brain/
+
+# AI Models
+*.pt
+*.pth
+*.onnx
+
+# Media
+screenshots/
+*.wav
+*.mp3
+
+# Logs
+*.log
+
+# Secrets
+jarvis/config/secrets.json
