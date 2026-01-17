@@ -80,6 +80,14 @@ class TextToSpeechEngine:
                 # Save to file
                 engine.save_to_file(text, self.temp_file)
                 engine.runAndWait()
+                
+                # Debug: Check file size
+                if os.path.exists(self.temp_file):
+                    size = os.path.getsize(self.temp_file)
+                    print(f"TTS: Generated WAV size: {size} bytes")
+                else:
+                    print("TTS: FAILED to generate WAV file")
+                
                 del engine
                 
                 # Check interruption
@@ -98,6 +106,11 @@ class TextToSpeechEngine:
                     
                     chunk_size = 1024
                     data = wf.readframes(chunk_size)
+                    
+                    if not data:
+                        print("TTS: WAV file is EMPTY")
+                    else:
+                        print(f"TTS: Playing audio... ({wf.getnchannels()} channels, {wf.getframerate()}Hz)")
                     
                     while data:
                         if self.stop_event.is_set():

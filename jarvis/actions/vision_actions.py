@@ -50,7 +50,10 @@ _vision_state = {
     "thread": None,
     "running": False,
     "lock": threading.Lock(),
-    "current_frame": None  # Store latest frame for queries
+    "current_frame": None,  # Store latest frame for queries
+    "latest_summary": "Nothing detected yet.",
+    "last_update_time": 0,
+    "history": [] # List of (timestamp, summary) tuples
 }
 
 def _get_face_manager():
@@ -205,6 +208,25 @@ def detect_objects():
         "details": results['details'],
         "message": message
     }
+
+def detect_handheld_object():
+    """
+    Highly advanced identification of a specific object being held.
+    Uses LLM Vision for pinpoint accuracy.
+    """
+    from core.llm import LLM
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
+    
+    # Save temp image
+    temp_path = os.path.join(os.getcwd(), "screenshots", "handheld_scan.png")
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    cv2.imwrite(temp_path, frame)
+    
+    llm = LLM()
+    result = llm.analyze_image(temp_path, "Look closely at what the person is holding in their hand. Identify the specific object and describe it.")
+    return result
 
 def is_object_present(object_name):
     """
@@ -507,16 +529,27 @@ def search_object_details(object_name=None):
 # OCR & TEXT EXTRACTION
 # ============================================================================
 
-def ocr_extract_text(image_path=None):
+def read_text(prompt="Read the text visible in this image."):
     """
-    Extract text from camera or image using OCR
+    Highly advanced OCR using LLM Vision.
+    Use this for reading labels, books, or handwritten notes.
+    """
+    from core.llm import LLM
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
     
-    Args:
-        image_path: Optional path to image file
-        
-    Returns:
-        str: Extracted text
-    """
+    # Save temp image
+    temp_path = os.path.join(os.getcwd(), "screenshots", "temp_ocr.png")
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    cv2.imwrite(temp_path, frame)
+    
+    llm = LLM()
+    result = llm.analyze_image(temp_path, prompt)
+    return result
+
+def ocr_extract_text(image_path=None):
+    """Legacy Tesseract OCR (kept for speed if needed)"""
     if pytesseract is None:
         return "PyTesseract not installed."
     
@@ -593,9 +626,15 @@ def analyze_error():
 # ADDITIONAL VISION MODES
 # ============================================================================
 
-def detect_motion():
-    """Enable motion detection mode"""
+def deep_scan():
+    """
+    The ultimate vision mode. Enables Object Detection, Face Recognition, 
+    and Emotion analysis all at once.
+    """
+    with _vision_state["lock"]:
+        _vision_state["active_modes"] = {"object_detection", "face_recognition", "emotion_detection"}
     _start_vision_thread()
+    return "Initialising deep scan. All vision systems are now active and tracking, sir."
     _vision_state["active_modes"].add("motion_detection")
     return "Motion detection enabled. I'll alert you to movement."
 
@@ -679,10 +718,28 @@ def _vision_loop():
         display_frame = frame.copy()
         modes = _vision_state["active_modes"].copy()
         
-        # Object Detection
+        # Object Detection & Summary (Always run for global context if camera is offline)
+        if yolo is None:
+            yolo = _get_yolo_detector()
+        
+        # We only draw if mode is active, but we always detect for the brain
+        detect_res = yolo.detect(frame)
+        if detect_res.get('objects'):
+            from collections import Counter
+            counts = Counter(detect_res['objects'])
+            summary = ", ".join([f"{v} {k}" for k, v in counts.items()])
+            _vision_state["latest_summary"] = f"Visible: {summary}"
+            
+            # Update history every 10 seconds or if major change
+            now = time.time()
+            if now - _vision_state["last_update_time"] > 10:
+                _vision_state["history"].append((datetime.datetime.now(), summary))
+                if len(_vision_state["history"]) > 50: _vision_state["history"].pop(0)
+                _vision_state["last_update_time"] = now
+        else:
+            _vision_state["latest_summary"] = "Nothing of interest detected."
+
         if "object_detection" in modes:
-            if yolo is None:
-                yolo = _get_yolo_detector()
             display_frame, _ = yolo.detect_and_draw(display_frame)
         
         # Face Recognition
@@ -725,7 +782,12 @@ def _vision_loop():
     cam.close_camera()
     cv2.destroyAllWindows()
     _vision_state["running"] = False
+    _vision_state["latest_summary"] = "Camera is offline."
     print("Vision Loop: Stopped")
+
+def get_vision_context():
+    """Returns the latest vision summary for LLM context"""
+    return _vision_state.get("latest_summary", "Camera is offline.")
 
 # ============================================================================
 # LEGACY COMPATIBILITY
@@ -791,3 +853,20 @@ def record_video(duration=10, filename=None):
     
     out.release()
     return f"Video saved to {filepath}"
+
+def recall_vision():
+    """Recalls what was seen recently in the camera."""
+    history = _vision_state.get("history", [])
+    if not history:
+        return "I haven't recorded any visual history yet, sir."
+    
+    events = []
+    # Get last 10 unique events
+    seen = set()
+    for ts, summary in reversed(history):
+        if summary not in seen:
+            events.append(f"At {ts.strftime('%H:%M:%S')}: {summary}")
+            seen.add(summary)
+        if len(events) >= 10: break
+    
+    return "Recent visual history:\n" + "\n".join(reversed(events))

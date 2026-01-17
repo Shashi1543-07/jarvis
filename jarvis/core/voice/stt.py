@@ -5,16 +5,20 @@ from .audio_preprocessor import AudioPreprocessor
 
 
 class SpeechToTextEngine:
-    def __init__(self, model_size="base.en", device="cpu", compute_type="int8"):
+    def __init__(self, model_size="base.en", device=None, compute_type=None):
         """
-        Initialize Faster Whisper with audio preprocessing.
-        device: 'cuda' or 'cpu'
-        compute_type: 'float16' or 'int8'
+        Initialize Faster Whisper with GPU acceleration support.
         """
-        print(f"Loading Whisper model: {model_size} on {device}...")
+        import torch
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        if compute_type is None:
+            compute_type = "float16" if device == "cuda" else "int8"
+            
+        print(f"Loading Whisper model: {model_size} on {device} ({compute_type})...")
         try:
             self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-            print("Whisper model loaded.")
+            print(f"Whisper model loaded on {device}.")
         except Exception as e:
             print(f"Error loading Whisper: {e}")
             self.model = None

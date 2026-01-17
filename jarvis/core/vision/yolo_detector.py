@@ -17,13 +17,13 @@ except ImportError:
 class YOLODetector:
     """YOLOv8 object detection wrapper"""
     
-    def __init__(self, model_name="yolov8n.pt"):
+    def __init__(self, model_name="yolov8m.pt"):
         """
         Initialize YOLO detector
         
         Args:
             model_name: YOLO model to use (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
-                       'n' = nano (fastest), 'x' = extra large (most accurate)
+            'n' = nano (fastest), 'm' = medium (balanced), 'x' = extra large (accurate)
         """
         self.model = None
         self.model_name = model_name
@@ -36,16 +36,20 @@ class YOLODetector:
         print(f"[YOLODetector] Initialized (model will load on first use)")
     
     def _load_model(self):
-        """Lazy load YOLO model"""
+        """Lazy load YOLO model with GPU acceleration"""
         if self.model is None and YOLO_AVAILABLE:
-            print(f"[YOLODetector] Loading {self.model_name}...")
+            print(f"[YOLODetector] Loading {self.model_name} on CUDA...")
             try:
+                # Force CUDA if available, fallback to CPU
+                import torch
+                device = "cuda" if torch.cuda.is_available() else "cpu"
                 self.model = YOLO(self.model_name)
-                print(f"[YOLODetector] Model loaded successfully")
+                self.model.to(device)
+                print(f"[YOLODetector] Model loaded successfully on {device}")
             except Exception as e:
                 print(f"[YOLODetector] Failed to load model: {e}")
     
-    def detect(self, frame, confidence_threshold=0.5):
+    def detect(self, frame, confidence_threshold=0.25):
         """
         Detect objects in frame
         
@@ -116,7 +120,7 @@ class YOLODetector:
                 'error': str(e)
             }
     
-    def detect_and_draw(self, frame, confidence_threshold=0.5):
+    def detect_and_draw(self, frame, confidence_threshold=0.25):
         """
         Detect objects and draw bounding boxes on frame
         
