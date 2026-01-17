@@ -13,4 +13,3 @@ torch
 numpy
 websockets
 aiofiles
-ultralytics

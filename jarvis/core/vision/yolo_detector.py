@@ -1,5 +1,5 @@
 """
-YOLO Detector - Object detection using YOLO11
+YOLO Detector - Object detection using YOLOv8
 Real-time object detection and tracking
 """
 
@@ -15,14 +15,14 @@ except ImportError:
 
 
 class YOLODetector:
-    """YOLO11 object detection wrapper"""
+    """YOLOv8 object detection wrapper"""
     
-    def __init__(self, model_name="yolo11n.pt"):
+    def __init__(self, model_name="yolov8n.pt"):
         """
         Initialize YOLO detector
         
         Args:
-            model_name: YOLO model to use (yolo11n, yolo11s, yolo11m, yolo11l, yolo11x)
+            model_name: YOLO model to use (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
                        'n' = nano (fastest), 'x' = extra large (most accurate)
         """
         self.model = None

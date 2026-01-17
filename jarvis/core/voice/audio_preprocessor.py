@@ -161,7 +161,8 @@ class AudioPreprocessor:
         # 1. Denoise (most important for accuracy)
         audio_float = self.denoise_audio(audio_float)
         
-        # 2. Normalize volume
+        # 2. Normalize volume   
+    
         audio_float = self.normalize_audio(audio_float)
         
         # 3. Trim silence
