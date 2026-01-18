@@ -259,3 +259,219 @@ def open_task_manager():
     pyautogui.hotkey('ctrl', 'shift', 'esc')
     return "Opened Task Manager."
 
+def increase_brightness(step=10):
+    """Increase screen brightness by a step value"""
+    try:
+        import screen_brightness_control as sbc
+        current = sbc.get_brightness()[0]  # Get current brightness
+        new_brightness = min(100, current + step)  # Ensure it doesn't exceed 100%
+        sbc.set_brightness(new_brightness)
+        return f"Brightness increased to {new_brightness}%"
+    except ImportError:
+        return "Brightness control not available. Install screen-brightness-control."
+    except Exception as e:
+        return f"Failed to adjust brightness: {e}"
+
+def decrease_brightness(step=10):
+    """Decrease screen brightness by a step value"""
+    try:
+        import screen_brightness_control as sbc
+        current = sbc.get_brightness()[0]  # Get current brightness
+        new_brightness = max(0, current - step)  # Ensure it doesn't go below 0%
+        sbc.set_brightness(new_brightness)
+        return f"Brightness decreased to {new_brightness}%"
+    except ImportError:
+        return "Brightness control not available. Install screen-brightness-control."
+    except Exception as e:
+        return f"Failed to adjust brightness: {e}"
+
+def adjust_brightness():
+    """Interactive brightness adjustment"""
+    try:
+        import screen_brightness_control as sbc
+        current = sbc.get_brightness()[0]
+        return f"Current brightness is {current}%. You can specify a percentage to set it to."
+    except ImportError:
+        return "Brightness control not available. Install screen-brightness-control."
+    except Exception as e:
+        return f"Failed to get brightness: {e}"
+
+def sleep_system():
+    """Put system to sleep"""
+    print("Putting system to sleep...")
+    if platform.system() == "Windows":
+        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+    elif platform.system() == "Darwin":
+        os.system("pmset sleepnow")
+    elif platform.system() == "Linux":
+        os.system("systemctl suspend")
+    return "System is going to sleep."
+
+def restart_system():
+    """Restart the system"""
+    print("Restarting system...")
+    if platform.system() == "Windows":
+        os.system("shutdown /r /t 5")
+    elif platform.system() == "Linux" or platform.system() == "Darwin":
+        os.system("sudo reboot")
+    return "System restarting in 5 seconds."
+
+def hibernate_system():
+    """Hibernate the system"""
+    print("Hibernating system...")
+    if platform.system() == "Windows":
+        os.system("shutdown /h")
+    elif platform.system() == "Linux":
+        os.system("systemctl hibernate")
+    # Darwin (macOS) doesn't have a simple hibernation command
+    return "System hibernating."
+
+def check_day():
+    """Get the current day of the week"""
+    day = datetime.datetime.now().strftime("%A")
+    return f"Today is {day}"
+
+def memory_usage():
+    """Get memory usage"""
+    usage = psutil.virtual_memory().percent
+    return f"Memory usage is at {usage}%"
+
+def disk_usage():
+    """Get disk usage"""
+    usage = psutil.disk_usage('/').percent
+    return f"Disk usage is at {usage}%"
+
+def network_status():
+    """Get network status"""
+    try:
+        import socket
+        # Try to connect to a public DNS server to check internet connectivity
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        return "Network is connected to the internet."
+    except OSError:
+        return "Network is not connected to the internet."
+
+def open_application(app_name):
+    """Open a specific application by name"""
+    try:
+        if platform.system() == "Windows":
+            # Common Windows applications
+            apps = {
+                "notepad": "notepad.exe",
+                "calculator": "calc.exe",
+                "paint": "mspaint.exe",
+                "wordpad": "write.exe",
+                "cmd": "cmd.exe",
+                "powershell": "powershell.exe",
+                "explorer": "explorer.exe",
+                "chrome": "chrome.exe",
+                "firefox": "firefox.exe",
+                "edge": "msedge.exe",
+                "vscode": "code.exe",
+                "spotify": "spotify.exe",
+                "steam": "steam.exe",
+                "discord": "discord.exe"
+            }
+
+            app_cmd = apps.get(app_name.lower(), app_name)
+            os.system(f"start {app_cmd}")
+            return f"Opening {app_name}."
+        else:
+            # For Linux/Mac, we'd need different handling
+            return f"Opening applications is currently only supported on Windows."
+    except Exception as e:
+        return f"Failed to open {app_name}: {e}"
+
+def close_application(app_name):
+    """Close a specific application by name"""
+    try:
+        if platform.system() == "Windows":
+            os.system(f"taskkill /im {app_name}.exe /f")
+            return f"Closed {app_name}."
+        else:
+            return f"Closing applications is currently only supported on Windows."
+    except Exception as e:
+        return f"Failed to close {app_name}: {e}"
+
+def system_info():
+    """Get comprehensive system information"""
+    import platform
+    uname = platform.uname()
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+
+    info = f"""
+System Information:
+- System: {uname.system}
+- Node Name: {uname.node}
+- Release: {uname.release}
+- Version: {uname.version}
+- Machine: {uname.machine}
+- Processor: {uname.processor}
+- Boot Time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
+    """
+    return info.strip()
+
+def list_processes():
+    """List running processes"""
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'username']):
+        try:
+            processes.append(proc.info)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass  # Process might have terminated or access denied
+
+    # Return first 10 processes for brevity
+    top_processes = processes[:10]
+    process_list = "\n".join([f"- {p['name']} (PID: {p['pid']})" for p in top_processes])
+    return f"Top running processes:\n{process_list}\n... and {len(processes)-10} more."
+
+def kill_process_by_name(process_name):
+    """Kill a process by its name"""
+    try:
+        for proc in psutil.process_iter(['pid', 'name']):
+            if process_name.lower() in proc.info['name'].lower():
+                proc.kill()
+                return f"Killed process {proc.info['name']} (PID: {proc.info['pid']})"
+        return f"No process found with name containing '{process_name}'"
+    except Exception as e:
+        return f"Failed to kill process: {e}"
+
+# --- Window Management Actions ---
+
+def list_open_windows():
+    """List all open window titles"""
+    from core.os.window_manager import WindowManager
+    wm = WindowManager()
+    windows = wm.list_windows()
+    if windows:
+        return f"Currently open windows:\n" + "\n".join([f"- {w}" for w in windows])
+    return "No visible windows found."
+
+def focus_app(name):
+    """Bring a specific application to the front"""
+    from core.os.window_manager import WindowManager
+    wm = WindowManager()
+    if wm.focus_window(name):
+        return f"Focused {name}."
+    return f"Could not find a window with name {name}."
+
+def tile_apps(app1, app2):
+    """Tile two applications side-by-side"""
+    from core.os.window_manager import WindowManager
+    wm = WindowManager()
+    success, msg = wm.tile_windows(app1, app2)
+    return msg
+
+def maximize_app(name):
+    """Maximize a specific application"""
+    from core.os.window_manager import WindowManager
+    wm = WindowManager()
+    if wm.maximize(name):
+        return f"Maximized {name}."
+    return f"Window {name} not found."
+
+def activate_boss_key(cover_app="code"):
+    """Instantly hide distractions and focus a work app"""
+    from core.os.macro_engine import MacroEngine
+    me = MacroEngine()
+    return me.activate_boss_key(cover_app)

@@ -44,6 +44,14 @@ def main():
         engine.start()
         print("Realtime Audio Engine started.")
 
+        # Start Proactive Heartbeat
+        try:
+            from core.heartbeat import start_heartbeat
+            start_heartbeat(engine)
+            print("Proactive Heartbeat initialized.")
+        except Exception as e:
+            print(f"Failed to start Heartbeat: {e}")
+
     if USE_GUI:
         print("Starting GUI...")
         from gui_hologram import JarvisGUI

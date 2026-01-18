@@ -1,19 +1,25 @@
 {
     "long_term": {
-        "favorite_color": "blue",
-        "preferences": {
-            "friend_Avajith": "editor",
-            "friend_Ohm_Sutvanay": "flute master",
-            "creator_full_name": "Shashi Shekar Mishra",
-            "preferred_address_style": "Shashi or Sir",
-            "college": "VNIT Nagpur (Visvesvaraya National Institute of Technology)",
-            "branch": "Electronics and Communication Engineering, First Year"
+        "facts": {
+            "general": [
+                "my car's plate number is abc 789.",
+                "my favorite coffee is a double espresso.",
+                ": the secret code for the lab is 4242."
+            ]
         }
     },
     "sessions": [
         {
             "timestamp": "2025-12-01T19:20:27.622950",
             "summary": "User asked about the weather and system performance"
+        },
+        {
+            "timestamp": "2026-01-18T20:13:05.545837",
+            "summary": "Completed Phase 2 of Jarvis Vision."
+        },
+        {
+            "timestamp": "2026-01-18T20:14:02.063359",
+            "summary": "Completed Phase 2 of Jarvis Vision."
         }
     ],
     "tasks": {

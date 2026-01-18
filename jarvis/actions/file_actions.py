@@ -159,3 +159,34 @@ def read_document_aloud(file_path):
         return f"Reading {file_path}: {content}"
     except Exception as e:
         return f"Error reading file: {e}"
+
+def organize_folder(path):
+    """Sorts files into subfolders based on their extension types."""
+    if not os.path.exists(path):
+        return "Folder not found."
+    
+    categories = {
+        "Documents": [".pdf", ".docx", ".txt", ".csv", ".xlsx", ".pptx"],
+        "Media": [".mp3", ".mp4", ".wav", ".avi", ".mkv"],
+        "Images": [".jpg", ".jpeg", ".png", ".gif", ".svg"],
+        "Archives": [".zip", ".rar", ".7z", ".tar", ".gz"],
+        "Source": [".py", ".js", ".html", ".css", ".cpp", ".c", ".go", ".json"]
+    }
+
+    count = 0
+    for item in os.listdir(path):
+        item_path = os.path.join(path, item)
+        if os.path.isfile(item_path):
+            ext = os.path.splitext(item)[1].lower()
+            target_cat = "Others"
+            for cat, exts in categories.items():
+                if ext in exts:
+                    target_cat = cat
+                    break
+            
+            target_dir = os.path.join(path, target_cat)
+            os.makedirs(target_dir, exist_ok=True)
+            shutil.move(item_path, os.path.join(target_dir, item))
+            count += 1
+            
+    return f"Folder organized. Moved {count} files into categories."

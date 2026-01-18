@@ -42,3 +42,33 @@ def download_file(url, file_path=None):
     except Exception as e:
         print(f"Error downloading file: {e}")
         return f"Failed to download file: {e}"
+
+def deep_research(topic):
+    """
+    Performs a multi-source deep dive on a topic and returns a synthesis.
+    """
+    from core.internet.research_agent import ResearchAgent
+    from core.ollama_brain import OllamaBrain
+    
+    print(f"WebActions: Triggering deep research on {topic}...")
+    agent = ResearchAgent(OllamaBrain())
+    return agent.perform_research(topic)
+
+def get_news():
+    """
+    Fetches the latest news headlines.
+    """
+    from core.internet.research_agent import ResearchAgent
+    from core.ollama_brain import OllamaBrain
+    agent = ResearchAgent(OllamaBrain())
+    return agent.perform_research("world news today headlines")
+
+def get_weather():
+    """
+    Fetches current weather information.
+    """
+    # Placeholder for a proper API call, using research agent for now
+    from core.internet.research_agent import ResearchAgent
+    from core.ollama_brain import OllamaBrain
+    agent = ResearchAgent(OllamaBrain())
+    return agent.perform_research("current weather report")

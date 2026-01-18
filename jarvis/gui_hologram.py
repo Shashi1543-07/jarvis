@@ -141,3 +141,12 @@ class JarvisGUI(QMainWindow):
                 self.engine.state_machine.set_state("IDLE")
             else:
                 self.engine.state_machine.set_state("LISTENING")
+
+    def closeEvent(self, event):
+        """Cleanup when window is closed"""
+        print("GUI: Closing...")
+        if self.engine:
+            # Safely disconnect callbacks
+            self.engine.state_machine.on_state_change = None
+            self.engine.on_text_update = None
+        event.accept()

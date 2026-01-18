@@ -8,31 +8,42 @@ def remember_user_preference(key, value):
     """Remember a user preference persistently"""
     print(f"Remembering preference: {key} = {value}")
     mem = Memory()
-    
-    # Store in a preferences sub-dict to keep organized
-    if 'preferences' not in mem.long_term:
-        mem.long_term['preferences'] = {}
-    
-    mem.long_term['preferences'][key] = value
-    mem.save_memory()
+    mem.remember_preference(key, value)
     return f"Remembered that {key} is {value}"
 
+def memorize_fact(fact):
+    """Store a general fact in long-term memory"""
+    print(f"Memorizing fact: {fact}")
+    mem = Memory()
+    
+    # Try to categorize it automatically or just save as a general fact
+    # For now, we use the text as both subject and fact for simple retrieval
+    mem.add_fact("general", fact)
+    mem.save_memory()
+    return f"Fact committed to memory: {fact}"
+
 def recall_memory(key):
-    """Recall a user preference"""
+    """Recall information using semantic search or direct lookup"""
     print(f"Recalling memory: {key}")
     mem = Memory()
     
-    # Check preferences first
+    # 1. Try Semantic Search first (Powerful)
+    results = mem.search_memory(key, top_k=1)
+    if results:
+        return f"According to my records: {results[0]}"
+    
+    # 2. Direct lookup fallbacks
     if 'preferences' in mem.long_term and key in mem.long_term['preferences']:
-        value = mem.long_term['preferences'][key]
-        return f"{key} is {value}"
+        return f"{key} is {mem.long_term['preferences'][key]}"
     
-    # Check general memory
-    value = mem.get(key)
-    if value:
-        return f"{key} is {value}"
-    
-    return f"I don't remember anything about {key}."
+    for subject, facts in mem.long_term.get('facts', {}).items():
+        if key.lower() in subject.lower():
+            return f"{subject}: {facts[-1]}"
+        for f in facts:
+            if key.lower() in f.lower():
+                return f"I found this: {f}"
+
+    return f"I'm sorry Sir, I couldn't find any specific records regarding '{key}'."
 
 def update_memory(key, value):
     """Update a memory value"""

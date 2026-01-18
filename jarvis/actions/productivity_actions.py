@@ -67,3 +67,31 @@ def todo_delete(item):
         f.writelines(new_lines)
     
     return f"Removed {item} from TODO list."
+
+def summarize_document(file_path):
+    """Analyze and summarize a local document"""
+    from core.productivity.doc_analyzer import DocAnalyzer
+    from core.ollama_brain import OllamaBrain
+    da = DocAnalyzer(OllamaBrain())
+    return da.summarize_document(file_path)
+
+def ask_about_document(file_path, question):
+    """Answer a specific question based on a document's content"""
+    from core.productivity.doc_analyzer import DocAnalyzer
+    from core.ollama_brain import OllamaBrain
+    da = DocAnalyzer(OllamaBrain())
+    return da.ask_about_document(file_path, question)
+
+def explain_code(file_path, function_name=None):
+    """Explain code logic or specific functions"""
+    from core.productivity.code_assistant import CodeAssistant
+    from core.ollama_brain import OllamaBrain
+    ca = CodeAssistant(OllamaBrain())
+    return ca.explain_code(file_path, function_name)
+
+def analyze_project(root_path):
+    """Analyze the architecture of a project directory"""
+    from core.productivity.code_assistant import CodeAssistant
+    from core.ollama_brain import OllamaBrain
+    ca = CodeAssistant(OllamaBrain())
+    return ca.analyze_project_structure(root_path)

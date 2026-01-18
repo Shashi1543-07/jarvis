@@ -10,6 +10,11 @@ google-generativeai
 edge-tts
 faster-whisper
 torch
-numpy
 websockets
 aiofiles
+# Vision Dependencies
+ultralytics
+face-recognition
+opencv-python
+pillow
+transformers

@@ -2,80 +2,38 @@ import google.generativeai as genai
 import os
 import json
 import time
-
-class KeyManager:
-    """Manages multiple API keys and their quota states."""
-    def __init__(self, keys):
-        self.keys = keys if isinstance(keys, list) else [keys]
-        self.current_key_index = 0
-        self.exhausted_keys = {} # key -> cleanup_timestamp
-        self.cooldown_period = 3600 # 1 hour cool down for 429/404 errors
-    
-    def get_current_key(self):
-        if not self.keys:
-            return None
-        now = time.time()
-        # Cleanup expired entries
-        self.exhausted_keys = {k: ts for k, ts in self.exhausted_keys.items() if now < ts}
-        
-        for i in range(len(self.keys)):
-            idx = (self.current_key_index + i) % len(self.keys)
-            key = self.keys[idx]
-            if key not in self.exhausted_keys:
-                self.current_key_index = idx
-                return key
-        return None
-
-    def mark_exhausted(self, key):
-        self.exhausted_keys[key] = time.time() + self.cooldown_period
-        self.rotate()
-
-    def rotate(self):
-        if self.keys:
-            self.current_key_index = (self.current_key_index + 1) % len(self.keys)
+from datetime import datetime, timedelta
 
 class LLM:
+    """Lean Gemini client with a hard Circuit Breaker."""
+    
     def __init__(self):
         self.keys = self._load_api_keys()
-        self.key_manager = KeyManager(self.keys)
-        # Prioritize 2.5-flash as it's the newest confirmed model for new projects
-        self.models_to_try = [
-            'models/gemini-2.5-flash',
-            'models/gemini-1.5-flash',
-            'models/gemini-1.5-pro',
-            'models/gemini-pro',
-            'models/gemini-2.0-flash-exp'
-        ]
-        self.current_model_index = 0
+        self.primary_key = self.keys[0] if self.keys else None
+        self.model_name = 'models/gemini-2.0-flash-exp' # Updated to available model
+        
+        # Circuit Breaker state
+        self.is_disabled = False
+        self.disabled_until = None
+        
         self.model = None
         self.chat = None
         self._initialize_llm()
 
-    def _initialize_llm(self, rotate_key=False, try_next_model=False):
-        """Initialize LLM with current or next key/model."""
-        if rotate_key:
-            current_key = self.key_manager.get_current_key()
-            if current_key:
-                self.key_manager.mark_exhausted(current_key)
-            self.current_model_index = 0
-        
-        if try_next_model:
-            self.current_model_index += 1
-            if self.current_model_index >= len(self.models_to_try):
-                return self._initialize_llm(rotate_key=True)
-
-        key = self.key_manager.get_current_key()
-        if not key:
+    def _initialize_llm(self):
+        """Initialize LLM once. No rotation."""
+        if not self.primary_key:
+            print("ALERT: No Gemini API key found.")
             return False
-        
+            
         try:
-            genai.configure(api_key=key, transport='rest')
-            model_name = self.models_to_try[self.current_model_index]
-            self.model = genai.GenerativeModel(model_name)
+            genai.configure(api_key=self.primary_key, transport='rest')
+            self.model = genai.GenerativeModel(self.model_name)
             self.chat = self.model.start_chat(history=[])
             return True
-        except Exception:
-            return self._initialize_llm(try_next_model=True)
+        except Exception as e:
+            print(f"FAILED to initialize Gemini: {e}")
+            return False
 
     def _load_api_keys(self):
         try:
@@ -84,17 +42,33 @@ class LLM:
                 with open(secrets_path, 'r') as f:
                     secrets = json.load(f)
                     keys = secrets.get('GEMINI_API_KEYS') or secrets.get('GEMINI_API_KEY')
-                    if isinstance(keys, str):
-                        return [keys]
+                    if isinstance(keys, str): return [keys]
                     return keys or []
-        except Exception:
-            pass
+        except: pass
         return []
 
-    def chat_with_context(self, user_input, context, system_instruction=None, retry_count=0):
-        if not self.model or not self.chat:
-            if not self._initialize_llm():
-                return "All AI quotas are full. Please add more API keys."
+    def check_circuit_breaker(self):
+        """Check if Gemini is currently locked out."""
+        if self.is_disabled:
+            if datetime.now() < self.disabled_until:
+                return True
+            else:
+                self.is_disabled = False
+                print("DEBUG: Gemini Circuit Breaker reset. Retrying web access.")
+        return False
+
+    def trigger_circuit_breaker(self, duration_mins=15):
+        """Disable Gemini for a duration."""
+        self.is_disabled = True
+        self.disabled_until = datetime.now() + timedelta(minutes=duration_mins)
+        print(f"CRITICAL: Gemini disabled due to quota for {duration_mins} minutes.")
+
+    def chat_with_context(self, user_input, context, system_instruction=None):
+        if self.check_circuit_breaker():
+            return "CIRCUIT_BREAKER_ACTIVE"
+
+        if not self.model: 
+            return "GEMINI_NOT_INITIALIZED"
 
         full_prompt = (f"System: {system_instruction}\n" if system_instruction else "") + \
                       f"Context: {context}\nUser: {user_input}"
@@ -103,25 +77,22 @@ class LLM:
             response = self.chat.send_message(full_prompt)
             return response.text
         except Exception as e:
-            err = str(e)
-            if ("429" in err or "404" in err or "quota" in err.lower() or "limit" in err.lower()):
-                if retry_count < len(self.keys) * len(self.models_to_try):
-                    if self._initialize_llm(try_next_model=True):
-                        return self.chat_with_context(user_input, context, system_instruction, retry_count + 1)
+            err = str(e).lower()
+            if any(x in err for x in ["429", "quota", "limit", "exhausted"]):
+                self.trigger_circuit_breaker()
+                return "QUOTA_EXCEEDED"
             return f"Thinking error: {e}"
 
-    def analyze_image(self, image_path, prompt, retry_count=0):
-        if not self.model:
-            if not self._initialize_llm():
-                return "AI unavailable."
+    def analyze_image(self, image_path, prompt):
+        if self.check_circuit_breaker():
+            return "CIRCUIT_BREAKER_ACTIVE"
         try:
             from PIL import Image
             img = Image.open(image_path)
             response = self.model.generate_content([prompt, img])
             return response.text
         except Exception as e:
-            err = str(e)
-            if ("429" in err or "404" in err or "quota" in err.lower()) and retry_count < 10:
-                if self._initialize_llm(try_next_model=True):
-                    return self.analyze_image(image_path, prompt, retry_count + 1)
+            if "429" in str(e) or "quota" in str(e).lower():
+                self.trigger_circuit_breaker()
+                return "QUOTA_EXCEEDED"
             return f"Vision error: {e}"

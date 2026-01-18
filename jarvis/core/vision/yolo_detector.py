@@ -1,5 +1,5 @@
 """
-YOLO Detector - Object detection using YOLOv8
+YOLO Detector - Object detection using YOLO11
 Real-time object detection and tracking
 """
 
@@ -15,18 +15,19 @@ except ImportError:
 
 
 class YOLODetector:
-    """YOLOv8 object detection wrapper"""
+    """YOLO11 object detection wrapper"""
     
-    def __init__(self, model_name="yolov8m.pt"):
+    def __init__(self, model_name="yolo11m.pt"):
         """
         Initialize YOLO detector
         
         Args:
-            model_name: YOLO model to use (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
+            model_name: YOLO model to use (yolo11n, yolo11s, yolo11m, yolo11l, yolo11x)
             'n' = nano (fastest), 'm' = medium (balanced), 'x' = extra large (accurate)
         """
         self.model = None
         self.model_name = model_name
+        self.failed_to_load = False # CIRCUIT BREAKER
         
         if not YOLO_AVAILABLE:
             print("[YOLODetector] YOLO not available")
@@ -37,7 +38,7 @@ class YOLODetector:
     
     def _load_model(self):
         """Lazy load YOLO model with GPU acceleration"""
-        if self.model is None and YOLO_AVAILABLE:
+        if self.model is None and YOLO_AVAILABLE and not self.failed_to_load:
             print(f"[YOLODetector] Loading {self.model_name} on CUDA...")
             try:
                 # Force CUDA if available, fallback to CPU
@@ -48,6 +49,11 @@ class YOLODetector:
                 print(f"[YOLODetector] Model loaded successfully on {device}")
             except Exception as e:
                 print(f"[YOLODetector] Failed to load model: {e}")
+                if "failed reading zip archive" in str(e).lower() or "central directory" in str(e).lower():
+                    print("[YOLODetector] CRITICAL: Model file is corrupted.")
+                    self.failed_to_load = True # Stop trying
+                # Set a temporary cooldown or flag to avoid spam
+                self.failed_to_load = True 
     
     def detect(self, frame, confidence_threshold=0.25):
         """

@@ -282,7 +282,11 @@ class AudioEngine:
                                 if text and len(text) > 2:
                                     print("User:", text)
                                     if self.on_text_update:
-                                        self.on_text_update("user", text)
+                                        try:
+                                            self.on_text_update("user", text)
+                                        except Exception as e:
+                                            print(f"AudioEngine: GUI update failed: {e}")
+                                            self.on_text_update = None
 
                                     response = self.router.route(text)
                                     action = response.get("action")
@@ -299,7 +303,11 @@ class AudioEngine:
                                         self.state_machine.set_state("SPEAKING")
                                         self.speech_start_time = time.time()
                                         if self.on_text_update:
-                                            self.on_text_update("jarvis", reply)
+                                            try:
+                                                self.on_text_update("jarvis", reply)
+                                            except Exception as e:
+                                                print(f"AudioEngine: GUI update failed: {e}")
+                                                self.on_text_update = None
                                         self.tts.start_tts_stream(reply)
                                     else:
                                         self.state_machine.set_state("LISTENING")

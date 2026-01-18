@@ -78,8 +78,17 @@ screenshots/
 *.wav
 *.mp3
 
-# Logs
-*.log
-
 # Secrets
 jarvis/config/secrets.json
+
+# Local Data / Models
+models/
+*.zip
+*.txt
+!requirements.txt
+!todo.txt
+!README.md
+
+# Logs
+jarvis_actions.log
+*.log

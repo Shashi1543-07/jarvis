@@ -83,28 +83,33 @@ class Router:
             else:
                 print(f"Unknown action: {name}")
 
-        # 4. Decision: Second Turn / Conversational Bridge
-        # We skip the second turn ONLY if there are no results needing explanation
-        # and we already have a substantial reply.
-        data_intensive_actions = ["describe_scene", "read_text", "detect_objects", "detect_handheld_object", "identify_people", "who_is_in_front", "analyze_screen", "read_screen"]
+        # 4. Decision: Second Turn
+        # Aggressively skip second turn for routine actions to save quota.
+        data_intensive_actions = ["describe_scene", "read_text", "detect_objects", "detect_handheld_object", "identify_people", "who_is_in_front", "analyze_screen", "read_screen", "google_search"]
         
         needs_second_turn = False
         if results:
-            # If any result comes from a data-intensive action, we MUST describe it
-            if any(r.get("action") in data_intensive_actions for r in results):
-                needs_second_turn = True
-            # Or if the result actually contains data (not just "Success")
-            elif any(isinstance(r.get("result"), (dict, list)) for r in results):
-                needs_second_turn = True
-        
-        if not needs_second_turn and reply_text:
-            return {"text": reply_text}
+            # Only turn 2 if we have data the LLM NEEDS to explain to the user
+            for r in results:
+                action_name = r.get("action")
+                result_data = r.get("result")
+                
+                if action_name in data_intensive_actions:
+                    needs_second_turn = True
+                    break
+                # If result is a complex object (dict/list) and not just a status string
+                if isinstance(result_data, (dict, list)) and len(str(result_data)) > 50:
+                    needs_second_turn = True
+                    break
 
-        # Call Brain to process results into natural language
-        if results or not reply_text:
-            print("Generating conversational response for action results...")
+        if needs_second_turn:
+            print("Generating conversational response for data-rich results...")
             final_reply = self.brain.process_action_results(text, results)
+            # Update memory with final reply
+            self.memory.remember_context(f"Jarvis: {final_reply}")
             return {"text": final_reply}
+            
+        return {"text": reply_text or "Action completed, sir."}
             
         return {"text": reply_text}
 
