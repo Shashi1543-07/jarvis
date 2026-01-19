@@ -1,8 +1,9 @@
 import json
 import inspect
 import datetime
+import atexit
 from core.brain import Brain
-from core.memory import Memory
+from core.enhanced_memory import EnhancedMemory
 
 # Import all action modules
 from actions import (
@@ -13,10 +14,18 @@ from actions import (
 
 class Router:
     def __init__(self):
-        self.brain = Brain()
-        self.memory = Memory()
+        self.memory = EnhancedMemory()
+        self.brain = Brain(self.memory) # Share common memory instance
         self.action_map = self._build_action_map()
         print("Router initialized with dynamic action dispatch.")
+
+        # Register exit handler to clear temporary memory
+        atexit.register(self._cleanup_on_exit)
+
+    def _cleanup_on_exit(self):
+        """Cleanup function called when the program exits"""
+        if hasattr(self, 'memory'):
+            self.memory.prepare_for_exit()
 
     def _build_action_map(self):
         modules = [
@@ -33,8 +42,12 @@ class Router:
 
     def route(self, text):
         print(f"User Input: {text}")
+
+        # Update personality profile based on recent interactions
+        self.memory.analyze_personality()
+
         llm_response = self.brain.think(text, self.memory.short_term, self.memory.long_term)
-        
+
         try:
             clean_response = llm_response.replace("```json", "").replace("```", "").strip()
             print(f"DEBUG: Raw LLM Response: {clean_response}")
@@ -45,13 +58,14 @@ class Router:
         except json.JSONDecodeError:
             print(f"Error parsing JSON: {llm_response}")
             response_data = {"action": "speak", "text": "I'm having trouble thinking clearly."}
-        
+
         reply_text = response_data.get("text", "")
-        
+
         # 1. Update Memory
-        self.memory.remember_context(f"User: {text}")
         if reply_text:
-            self.memory.remember_context(f"Jarvis: {reply_text}")
+            self.memory.remember_conversation(text, reply_text)
+        else:
+            self.memory.remember_context(f"User: {text}")
 
         # 2. Collect Actions
         actions_to_run = []
@@ -83,17 +97,18 @@ class Router:
             else:
                 print(f"Unknown action: {name}")
 
-        # 4. Decision: Second Turn
+        # 4. Handle results and determine if second turn is needed
         # Aggressively skip second turn for routine actions to save quota.
         data_intensive_actions = ["describe_scene", "read_text", "detect_objects", "detect_handheld_object", "identify_people", "who_is_in_front", "analyze_screen", "read_screen", "google_search"]
-        
+
         needs_second_turn = False
+        action_summary = ""
+        
         if results:
-            # Only turn 2 if we have data the LLM NEEDS to explain to the user
             for r in results:
                 action_name = r.get("action")
                 result_data = r.get("result")
-                
+
                 if action_name in data_intensive_actions:
                     needs_second_turn = True
                     break
@@ -101,17 +116,31 @@ class Router:
                 if isinstance(result_data, (dict, list)) and len(str(result_data)) > 50:
                     needs_second_turn = True
                     break
+                
+                # For simple string results (like battery status, volume result), collect them to append if no second turn
+                if isinstance(result_data, str) and result_data:
+                    if action_summary: action_summary += " "
+                    action_summary += result_data
 
         if needs_second_turn:
             print("Generating conversational response for data-rich results...")
             final_reply = self.brain.process_action_results(text, results)
-            # Update memory with final reply
-            self.memory.remember_context(f"Jarvis: {final_reply}")
+            # Update memory with final reply turn
+            self.memory.remember_conversation(text, final_reply)
             return {"text": final_reply}
+
+        # Final response construction
+        final_text = reply_text if reply_text else "Action completed, sir."
+        if action_summary and action_summary not in final_text:
+            final_text += f" {action_summary}"
             
-        return {"text": reply_text or "Action completed, sir."}
-            
-        return {"text": reply_text}
+        # Check for behavior learning suggestions
+        suggestions = self.brain.behavior_learning.suggest_based_on_patterns()
+        if suggestions and "suggestion" in text.lower():
+            suggestion_text = " ".join(suggestions[:1])
+            final_text += f" By the way, {suggestion_text.lower()}"
+
+        return {"text": final_text}
 
     def _log_action(self, action, params, result):
         try:

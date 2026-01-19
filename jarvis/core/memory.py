@@ -29,16 +29,19 @@ class Memory:
                 with open(self.memory_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.long_term = data.get('long_term', {})
+                    self.short_term = data.get('short_term', []) # Added short_term persistence
                     self.sessions = data.get('sessions', [])
                     self.tasks = data.get('tasks', {})
             else:
                 self.long_term = {}
+                self.short_term = []
                 self.sessions = []
                 self.tasks = {}
             print("Memory: Loaded.")
         except Exception as e:
             print(f"Memory: Failed to load: {e}")
             self.long_term = {}
+            self.short_term = []
             self.sessions = []
             self.tasks = {}
 
@@ -48,6 +51,7 @@ class Memory:
             os.makedirs(self.config_dir, exist_ok=True)
             data = {
                 'long_term': self.long_term,
+                'short_term': self.short_term, # Added short_term persistence
                 'sessions': self.sessions,
                 'tasks': self.tasks
             }
@@ -73,6 +77,7 @@ class Memory:
         self.short_term.append(text)
         if len(self.short_term) > 10:  # Keep last 10 interactions
             self.short_term.pop(0)
+        self.save_memory() # Auto-save context
 
     def remember_conversation(self, user_input, ai_response):
         """Remember a complete conversation turn"""
@@ -84,6 +89,7 @@ class Memory:
         self.short_term.append(conversation_entry)
         if len(self.short_term) > 10:  # Keep last 10 interactions
             self.short_term.pop(0)
+        self.save_memory() # Auto-save turn
 
     def get_recent_conversations(self, count=5):
         """Get recent conversation entries"""

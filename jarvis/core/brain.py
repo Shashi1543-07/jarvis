@@ -4,15 +4,18 @@ import json
 import subprocess
 import requests
 import time
+import datetime
 from core.briefing_manager import BriefingManager
-from core.memory import Memory # Added for explicit memory initialization in __init__
+from core.enhanced_memory import EnhancedMemory # Changed to use enhanced memory
+from core.behavior_learning import BehaviorLearning
 
 class Brain:
-    def __init__(self):
+    def __init__(self, memory=None):
         self.classifier = QueryClassifier()
-        self.memory = Memory() # Initialize Memory here
-        self.local_brain = LocalBrain(self.memory) # Initialize LocalBrain eagerly
+        self.memory = memory or EnhancedMemory() # Changed to use EnhancedMemory # Shared or new Memory instance
+        self.local_brain = LocalBrain(self.memory) # Initialize LocalBrain with shared memory
         self.briefing_manager = BriefingManager(self.memory, self.local_brain.ollama)
+        self.behavior_learning = BehaviorLearning(self.memory) # Initialize behavior learning
         print("Brain initialized with Local protocols.")
 
     def think(self, text, short_term_memory=None, long_term_memory=None):
@@ -25,14 +28,17 @@ class Brain:
         classification = self.classifier.classify(text)
         print(f"DEBUG: Intent Classified as: {classification}")
 
-        # 2. Route everything to local brain (which handles templates + Ollama reasoning)
+        # 2. Learn from this interaction
+        self.behavior_learning.learn_from_interaction(text, "", datetime.datetime.now())
+
+        # 3. Route everything to local brain (which handles templates + Ollama reasoning)
         local_response = self.local_brain.process(text, classification)
 
         # Ensure it's JSON for the router
         if isinstance(local_response, dict):
             if "action" not in local_response:
                 local_response["action"] = "speak"
-            
+
             # Handle briefing action directly
             if local_response.get("action") == "generate_daily_briefing":
                 briefing = self.briefing_manager.generate_report()
@@ -56,17 +62,17 @@ class Brain:
         # Collect raw results and detect vision data
         messages = []
         vision_context = []
-        
+
         for r in action_results:
             action_name = r.get("action")
             res = r.get("result")
-            
+
             # Special handling for structured vision data
             if isinstance(res, dict) and "type" in res:
                 # Update visual cache if local brain exists
                 if self.local_brain:
                     self.local_brain.visual_cache[res["type"]] = res
-                
+
                 if res["type"] == "handheld_analysis":
                     vision_context.append(f"YOLO detected: {res.get('yolo_detections')}")
                     vision_context.append(f"BLIP Scene: {res.get('scene_description')}")
@@ -80,7 +86,7 @@ class Brain:
                     vision_context.append(f"Scene: {res.get('description')}")
                 elif res["type"] == "identify_people":
                     vision_context.append(f"People: {res.get('message')}")
-            
+
             # Standard message collection
             if isinstance(res, dict):
                 messages.append(res.get("message") or res.get("text") or str(res))
@@ -91,6 +97,9 @@ class Brain:
 
         raw_summary = " ".join(messages)
 
+        # Learn from this interaction outcome
+        self.behavior_learning.learn_from_interaction(user_input, raw_summary, datetime.datetime.now())
+
         # If we have vision data or a complex result, use Ollama for a JARVIS-style summary
         if self.local_brain and hasattr(self.local_brain, 'ollama'):
             system_prompt = (
@@ -99,16 +108,16 @@ class Brain:
                 "Do NOT use filler, greetings, or conversational phrases. "
                 "Just report the text or facts detected."
             )
-            
+
             # Combine raw summary and visual context
             detail_for_llm = raw_summary
             if vision_context:
                 detail_for_llm += "\nVisual Details:\n" + "\n".join(vision_context)
-                
+
             user_prompt = f"User said: {user_input}\nAction Results: {detail_for_llm}"
-            
+
             ollama_summary = self.local_brain.ollama.generate_response(user_prompt, system=system_prompt)
-            
+
             if "ERROR" not in ollama_summary and ollama_summary:
                 return ollama_summary
 
