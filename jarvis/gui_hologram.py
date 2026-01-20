@@ -1,12 +1,47 @@
 import sys
 import os
 import threading
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel)
+import time
+import psutil
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout)
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl, Qt, pyqtSlot, QMetaObject, Q_ARG
-from PyQt5.QtGui import QFont
-from core.voice.state_machine_enhanced import VoiceState
+from PyQt5.QtWebChannel import QWebChannel
+from PyQt5.QtCore import QUrl, Qt, pyqtSlot, QMetaObject, Q_ARG, QObject, pyqtSignal, QThread
+
+# Bridge for communication between Python and JavaScript
+class Bridge(QObject):
+    setState = pyqtSignal(str)
+    setAudioData = pyqtSignal(list)
+    systemStats = pyqtSignal(dict) # Signal for CPU/RAM/Network
+    chatMessage = pyqtSignal(str, str) # Signal for Chat (Speaker, Text)
+
+    def __init__(self):
+        super().__init__()
+
+class SystemMonitorThread(QThread):
+    def __init__(self, bridge):
+        super().__init__()
+        self.bridge = bridge
+        self.running = True
+
+    def run(self):
+        while self.running:
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                ram = psutil.virtual_memory().percent
+                # Simple online check
+                net = "ONLINE" if psutil.net_if_stats() else "OFFLINE"
+                
+                stats = {
+                    "cpu": cpu,
+                    "ram": ram,
+                    "network": net
+                }
+                self.bridge.systemStats.emit(stats)
+                time.sleep(2) # Update every 2 seconds
+            except Exception as e:
+                print(f"System Monitor Error: {e}")
+                time.sleep(5)
 
 class JarvisGUI(QMainWindow):
     def __init__(self, engine=None):
@@ -14,7 +49,7 @@ class JarvisGUI(QMainWindow):
         self.engine = engine
         
         # Window setup
-        self.setWindowTitle("Jarvis AI - Holographic Interface")
+        self.setWindowTitle("Jarvis AI - Stark Tech Interface")
         self.setGeometry(100, 100, 1200, 800)
         self.setStyleSheet("background-color: black;")
         
@@ -22,40 +57,29 @@ class JarvisGUI(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         # 1. Hologram Area (WebEngine)
         self.web_view = QWebEngineView()
-        # Ensure path is absolute
-        html_path = os.path.abspath("jarvis/web/face_image.html")
+        # Point to the NEW HUD index.html
+        html_path = os.path.abspath("jarvis/web/index.html")
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
-        self.web_view.setStyleSheet("background: transparent;")
-        layout.addWidget(self.web_view, stretch=8)
+        self.web_view.setStyleSheet("background: black;")
+
+        # Custom Context Menu Policy to prevent right-click menu
+        self.web_view.setContextMenuPolicy(Qt.NoContextMenu)
         
-        # 2. Status Bar
-        self.status_label = QLabel("SYSTEM STATE: INITIALIZING")
-        self.status_label.setStyleSheet("color: cyan; font-family: Consolas; font-size: 14px; border: 1px solid cyan; padding: 5px;")
-        layout.addWidget(self.status_label)
+        layout.addWidget(self.web_view)
         
-        # 3. Chat Area
-        self.chat_area = QTextEdit()
-        self.chat_area.setReadOnly(True)
-        self.chat_area.setStyleSheet("background-color: #111; color: cyan; font-family: Consolas; border: 1px solid cyan;")
-        layout.addWidget(self.chat_area, stretch=2)
+        # Setup WebChannel
+        self.bridge = Bridge()
+        self.channel = QWebChannel()
+        self.channel.registerObject("bridge", self.bridge)
+        self.web_view.page().setWebChannel(self.channel)
         
-        # 4. Input Area
-        input_layout = QHBoxLayout()
-        self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("Type command or use voice...")
-        self.input_field.setStyleSheet("background-color: #222; color: cyan; font-family: Consolas; padding: 5px; border: 1px solid cyan;")
-        self.input_field.returnPressed.connect(self.handle_text_input)
-        input_layout.addWidget(self.input_field)
-        
-        self.listen_button = QPushButton("Stop Listening")
-        self.listen_button.setStyleSheet("background-color: cyan; color: black; font-family: Consolas; font-weight: bold; padding: 5px;")
-        self.listen_button.clicked.connect(self.toggle_listening)
-        input_layout.addWidget(self.listen_button)
-        
-        layout.addLayout(input_layout)
+        # Start System Monitor
+        self.monitor_thread = SystemMonitorThread(self.bridge)
+        self.monitor_thread.start()
         
         # Subscribe to Engine State
         if self.engine:
@@ -67,7 +91,6 @@ class JarvisGUI(QMainWindow):
         self.current_state = "IDLE"
         self.page_loaded = False
         self.web_view.loadFinished.connect(self.on_load_finished)
-        # self.update_state("IDLE") # Don't update until loaded
 
     def on_load_finished(self):
         print("GUI: Page loaded.")
@@ -88,70 +111,22 @@ class JarvisGUI(QMainWindow):
     
     def update_text_from_engine(self, speaker, text):
         """Called by AudioEngine when text is exchanged"""
-        QMetaObject.invokeMethod(self, "_thread_safe_append_text", Qt.QueuedConnection, 
-                                Q_ARG(str, speaker), Q_ARG(str, text))
+        self.bridge.chatMessage.emit(speaker, text)
     
-    @pyqtSlot(str, str)
-    def _thread_safe_append_text(self, speaker, text):
-        if speaker == "user":
-            self.chat_area.append(f"<span style='color: #00ff00;'>You:</span> {text}")
-        else:
-            self.chat_area.append(f"<span style='color: #00e5ff;'>Jarvis:</span> {text}")
-
     def update_state(self, state):
         self.current_state = state
-        self.status_label.setText(f"SYSTEM STATE: {state}")
         
         if not self.page_loaded:
             return
 
-        # Update Avatar via JS
-        js_code = ""
-        if state == "LISTENING":
-            js_code = "setState('listening');"
-            self.listen_button.setText("Stop Listening")
-        elif state == "THINKING":
-            js_code = "setState('thinking');"
-        elif state == "SPEAKING":
-            js_code = "setState('speaking');"
-        elif state == "IDLE":
-            js_code = "setState('idle');"
-            self.listen_button.setText("Start Listening")
-            
-        if js_code:
-            self.web_view.page().runJavaScript(js_code)
-
-    def handle_text_input(self):
-        text = self.input_field.text()
-        if text:
-            self.chat_area.append(f"You: {text}")
-            self.input_field.clear()
-            
-            if self.engine:
-                # Manually trigger thinking state
-                self.engine.state_machine.set_state(VoiceState.THINKING)
-                threading.Thread(target=self._process_text_input, args=(text,)).start()
-
-    def _process_text_input(self, text):
-        if self.engine:
-            response = self.engine.router.route(text)
-            reply = response.get("text")
-            if reply:
-                self.engine.state_machine.set_state(VoiceState.SPEAKING)
-                self.engine.tts.start_tts_stream(reply)
-            else:
-                self.engine.state_machine.set_state(VoiceState.IDLE)
-
-    def toggle_listening(self):
-        if self.engine:
-            if self.current_state == VoiceState.LISTENING.value:
-                self.engine.state_machine.set_state(VoiceState.IDLE)
-            else:
-                self.engine.state_machine.set_state(VoiceState.LISTENING)
+        # Emit signal to JS via bridge
+        self.bridge.setState.emit(state.lower())
 
     def closeEvent(self, event):
         """Cleanup when window is closed"""
         print("GUI: Closing...")
+        self.monitor_thread.running = False
+        self.monitor_thread.wait()
         if self.engine:
             # Safely disconnect callbacks
             self.engine.state_machine.on_state_change = None

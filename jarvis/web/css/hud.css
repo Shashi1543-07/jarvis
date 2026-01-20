@@ -1,0 +1,225 @@
+/* STARK TECH HUD THEME */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #020205;
+    color: #00E5FF;
+    font-family: 'Share Tech Mono', monospace;
+    perspective: 1000px;
+}
+
+#hud-container {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 350px 1fr 350px;
+    grid-template-rows: 80px 1fr 200px;
+    grid-template-areas:
+        "header header header"
+        "left center right"
+        "footer footer footer";
+    gap: 10px;
+    padding: 20px;
+    box-sizing: border-box;
+    background: radial-gradient(circle at center, #0a151f 0%, #000000 100%);
+}
+
+/* WIDGET STYLES */
+.widget {
+    background: rgba(0, 229, 255, 0.03);
+    border: 1px solid rgba(0, 229, 255, 0.2);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.05);
+    padding: 15px;
+    position: relative;
+    backdrop-filter: blur(2px);
+    transition: all 0.3s ease;
+}
+
+.widget::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background:
+        linear-gradient(to right, #00E5FF 10px, transparent 10px) 0 0,
+        linear-gradient(to bottom, #00E5FF 10px, transparent 10px) 0 0,
+        linear-gradient(to left, #00E5FF 10px, transparent 10px) 100% 0,
+        linear-gradient(to bottom, #00E5FF 10px, transparent 10px) 100% 0,
+        linear-gradient(to left, #00E5FF 10px, transparent 10px) 100% 100%,
+        linear-gradient(to top, #00E5FF 10px, transparent 10px) 100% 100%,
+        linear-gradient(to right, #00E5FF 10px, transparent 10px) 0 100%,
+        linear-gradient(to top, #00E5FF 10px, transparent 10px) 0 100%;
+    background-repeat: no-repeat;
+    background-size: 20px 20px;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.widget-title {
+    font-size: 1.2em;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 8px #00E5FF;
+    letter-spacing: 2px;
+}
+
+/* SPECIFIC AREAS */
+#arc-reactor-container {
+    grid-area: center;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#header-bar {
+    grid-area: header;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid rgba(0, 229, 255, 0.2);
+    padding: 0 20px;
+}
+
+#left-panel {
+    grid-area: left;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#right-panel {
+    grid-area: right;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#status-text {
+    position: absolute;
+    bottom: 10%;
+    width: 100%;
+    text-align: center;
+    font-size: 2em;
+    letter-spacing: 5px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* GLOW & ANIMATION CLASSES */
+.glow-text {
+    text-shadow: 0 0 5px #00E5FF, 0 0 10px #00E5FF;
+}
+
+.scanline {
+    width: 100%;
+    height: 2px;
+    background: rgba(0, 229, 255, 0.3);
+    position: absolute;
+    top: 0;
+    left: 0;
+    animation: scan 3s linear infinite;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 999;
+}
+
+@keyframes scan {
+    0% {
+        top: 0%;
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 100%;
+        opacity: 0;
+    }
+}
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+    50% {
+        opacity: 0;
+    }
+}
+
+/* DATA BARS */
+.bar-container {
+    width: 100%;
+    height: 10px;
+    background: rgba(0, 229, 255, 0.1);
+    margin-top: 5px;
+    position: relative;
+}
+
+.bar-fill {
+    height: 100%;
+    background: #00E5FF;
+    box-shadow: 0 0 10px #00E5FF;
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+/* CHAT PANEL */
+#chat-history {
+    height: 120px;
+    overflow-y: auto;
+    font-size: 14px;
+    margin-bottom: 10px;
+    padding-right: 10px;
+}
+
+#chat-history::-webkit-scrollbar {
+    width: 5px;
+}
+
+#chat-history::-webkit-scrollbar-thumb {
+    background: #00E5FF;
+    border-radius: 2px;
+}
+
+#input-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgba(0, 229, 255, 0.2);
+    padding-top: 10px;
+}
+
+#command-input {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    width: 100%;
+    outline: none;
+}
+
+#command-input::placeholder {
+    color: rgba(0, 229, 255, 0.4);
+}
+
+.msg-user {
+    color: #00ffaa;
+    margin-bottom: 5px;
+}
+
+.msg-jarvis {
+    color: #00E5FF;
+    margin-bottom: 5px;
+}

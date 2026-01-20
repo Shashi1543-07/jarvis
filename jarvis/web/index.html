@@ -1,91 +1,98 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS Holographic Face</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background: #000;
-            font-family: 'Courier New', monospace;
-        }
-        
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
-        
-        #info {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: #00E5FF;
-            font-size: 12px;
-            text-shadow: 0 0 10px #00E5FF;
-            z-index: 100;
-        }
-        
-        .state-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background: rgba(0, 229, 255, 0.1);
-            border: 1px solid #00E5FF;
-            color: #00E5FF;
-            text-transform: uppercase;
-            font-size: 14px;
-            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
-        }
-    </style>
+    <title>JARVIS HUD v3.0</title>
+    <link rel="stylesheet" href="css/hud.css">
 </head>
-<body>
-    <div id="canvas-container"></div>
-    <div class="state-indicator" id="state">INITIALIZING</div>
-    <div id="info">JARVIS v2.0 | Holographic Interface</div>
 
-    <!-- Three.js from CDN -->
+<body>
+    <div class="scanline"></div>
+
+    <div id="hud-container">
+        <!-- HEADER -->
+        <div id="header-bar">
+            <div id="clock">
+                <span id="clock-time" class="glow-text" style="font-size: 2em; margin-right: 10px;">00:00:00</span>
+                <span id="clock-date" style="font-size: 1em; opacity: 0.7;">Jan 01</span>
+            </div>
+            <div id="system-title" class="glow-text">J.A.R.V.I.S. SYSTEM INTERFACE</div>
+            <div id="weather-widget">22°C | CLEAR</div>
+        </div>
+
+        <!-- LEFT PANEL -->
+        <div id="left-panel">
+            <div class="widget">
+                <div class="widget-title">SYSTEM STATUS</div>
+                <div>CPU LOAD</div>
+                <div class="bar-container">
+                    <div id="cpu-bar" class="bar-fill" style="width: 45%"></div>
+                </div>
+                <div style="margin-top: 10px;">RAM USAGE</div>
+                <div class="bar-container">
+                    <div id="ram-bar" class="bar-fill" style="width: 62%"></div>
+                </div>
+                <div style="margin-top: 10px;">NETWORK: ONLINE</div>
+            </div>
+            <div class="widget">
+                <div class="widget-title">ACTIVE TASKS</div>
+                <ul style="padding-left: 20px; list-style-type: square; color: #00E5FF;">
+                    <li>Voice Monitoring</li>
+                    <li>Visual Analysis</li>
+                    <li>Memory Indexing</li>
+                    <li>Security: ARMOR_MODE</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL (REACTOR) -->
+        <div id="arc-reactor-container">
+            <!-- Three.js Canvas Injected Here -->
+            <div id="status-text" class="glow-text">INITIALIZING</div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div id="right-panel">
+            <div class="widget">
+                <div class="widget-title">MEMORY BANK</div>
+                <div>LTM NODES: 8,421</div>
+                <div>STM BUFFER: CLEAR</div>
+                <div>RELATIONSHIPS: LOCKED</div>
+                <div style="margin-top:20px; text-align:center;">
+                    <div class="blink"
+                        style="color:#00E5FF; border:1px solid #00E5FF; display:inline-block; padding:5px 10px;">DATA
+                        SECURE</div>
+                </div>
+            </div>
+            <div class="widget">
+                <div class="widget-title">TARGETING</div>
+                <div>D: Scanning...</div>
+                <div>V: Passive</div>
+                <div>A: Active</div>
+            </div>
+        </div>
+
+        <!-- FOOTER (COMMUNICATION LOG) -->
+        <div id="terminal-panel" class="widget">
+            <div class="widget-title">COMMUNICATION LOG</div>
+            <div id="chat-history">
+                <!-- Chat messages injected here -->
+            </div>
+            <div id="input-area">
+                <span style="color: #00E5FF;">></span>
+                <input type="text" id="command-input" placeholder="INITIATE COMMAND..." onkeydown="handleInput(event)">
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Delaunator for triangulation -->
-    <script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.0/delaunator.min.js"></script>
-    <!-- GSAP for smooth animations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    
-    <script src="face.js"></script>
-    <script src="animations/idle.js"></script>
-    <script src="animations/listening.js"></script>
-    <script src="animations/thinking.js"></script>
-    <script src="animations/speaking.js"></script>
-    
-    <script>
-        // QWebChannel integration for PyQt5 communication
-        window.onload = function() {
-            if (typeof QWebChannel !== 'undefined') {
-                new QWebChannel(qt.webChannelTransport, function(channel) {
-                    window.bridge = channel.objects.bridge;
-                    
-                    // Listen for state changes from Python
-                    window.bridge.setState.connect(function(state) {
-                        if (window.faceController) {
-                            window.faceController.setState(state);
-                            document.getElementById('state').textContent = state.toUpperCase();
-                        }
-                    });
-                    
-                    window.bridge.setAudioData.connect(function(audioData) {
-                        if (window.faceController) {
-                            window.faceController.setAudioData(audioData);
-                        }
-                    });
-                });
-            }
-            
-            // Initialize the face
-            initFace();
-        };
-    </script>
+    <script src="qwebchannel.js"></script> <!-- Ensure this exists or is simulated -->
+    <script src="js/reactor.js"></script>
+    <script src="js/hud.js"></script>
 </body>
+
 </html>

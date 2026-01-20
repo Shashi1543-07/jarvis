@@ -169,13 +169,13 @@
         }
     },
     "interests": [
-        "ai",
-        "pizza?",
-        "pizza and italian food",
-        "technology",
-        "programming",
         "memory.json,",
-        "pizza"
+        "ai",
+        "technology",
+        "pizza?",
+        "pizza",
+        "programming",
+        "pizza and italian food"
     ],
     "favorites": {
         "music": [
