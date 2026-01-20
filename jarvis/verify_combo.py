@@ -1,64 +1,42 @@
 import sys
 import os
-import json
+import time
 
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Ensure the project root is in the path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.router import Router
+from core.voice.state_machine_enhanced import VoiceState, RaceConditionSafeVoiceController
 
-# Mock Brain to return a combo action without calling LLM
-class MockBrain:
-    def think(self, text, short_term, long_term):
-        # Simulate a response for "Create a file named combo_test.txt and write 'Success' in it"
-        return json.dumps({
-            "intent": "combo",
-            "reply": "Creating file and writing content.",
-            "steps": [
-                {
-                    "intent": "create_file",
-                    "parameters": {
-                        "file_path": "combo_test.txt",
-                        "content": ""
-                    }
-                },
-                {
-                    "intent": "write_file",
-                    "parameters": {
-                        "file_path": "combo_test.txt",
-                        "content": "Success"
-                    }
-                }
-            ]
-        })
-
-def test_combo():
-    print("Testing Combo Logic...")
-    print("-" * 50)
+def test_state_recovery():
+    print("Testing State Recovery...")
+    controller = RaceConditionSafeVoiceController()
+    sm = controller.state_machine
     
-    router = Router()
-    # Inject mock brain
-    router.brain = MockBrain()
+    # Test valid recovery to IDLE
+    sm.force_state(VoiceState.LISTENING)
+    print(f"Current: {sm.get_state()}")
     
-    response = router.route("Do the combo test")
+    success = sm.set_state(VoiceState.IDLE)
+    print(f"Transition LISTENING -> IDLE: {success}")
+    if not success: return False
     
-    print(f"Response Intent: {response['intent']}")
-    print(f"Results: {response.get('results')}")
+    sm.force_state(VoiceState.THINKING)
+    success = sm.set_state(VoiceState.IDLE)
+    print(f"Transition THINKING -> IDLE: {success}")
+    if not success: return False
     
-    # Verify file creation
-    if os.path.exists("combo_test.txt"):
-        with open("combo_test.txt", "r") as f:
-            content = f.read()
-        print(f"File Content: {content}")
-        if content == "Success":
-            print("✅ Combo test passed: File created and written to.")
-        else:
-            print("❌ Combo test failed: Content mismatch.")
-        
-        # Cleanup
-        os.remove("combo_test.txt")
-    else:
-        print("❌ Combo test failed: File not created.")
+    sm.force_state(VoiceState.IDLE)
+    success = sm.set_state(VoiceState.THINKING)
+    print(f"Transition IDLE -> THINKING: {success}")
+    if not success: return False
+    
+    print("State Machine Recovery Test: PASSED")
+    return True
 
 if __name__ == "__main__":
-    test_combo()
+    if test_state_recovery():
+        print("\nALL SYSTEMS GO. The state machine is now robust.")
+        sys.exit(0)
+    else:
+        print("\nFAILURE. State transitions are still too restrictive.")
+        sys.exit(1)

@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt, pyqtSlot, QMetaObject, Q_ARG
 from PyQt5.QtGui import QFont
+from core.voice.state_machine_enhanced import VoiceState
 
 class JarvisGUI(QMainWindow):
     def __init__(self, engine=None):
@@ -58,7 +59,9 @@ class JarvisGUI(QMainWindow):
         
         # Subscribe to Engine State
         if self.engine:
-            self.engine.state_machine.on_state_change = self.update_state_from_engine
+            # Register callbacks for all states or just use a generic transition logger
+            for state in self.engine.state_machine._valid_transitions.keys():
+                self.engine.state_machine.register_callback(state, self.handle_state_transition)
             self.engine.on_text_update = self.update_text_from_engine
             
         self.current_state = "IDLE"
@@ -71,9 +74,13 @@ class JarvisGUI(QMainWindow):
         self.page_loaded = True
         self.update_state(self.current_state)
 
-    def update_state_from_engine(self, state):
+    def handle_state_transition(self, old_state, new_state):
+        """Wrapper for state machine callback"""
+        self.update_state_from_engine(new_state.value)
+
+    def update_state_from_engine(self, state_value):
         # Thread-safe update
-        QMetaObject.invokeMethod(self, "_thread_safe_set_state", Qt.QueuedConnection, Q_ARG(str, state))
+        QMetaObject.invokeMethod(self, "_thread_safe_set_state", Qt.QueuedConnection, Q_ARG(str, state_value))
 
     @pyqtSlot(str)
     def _thread_safe_set_state(self, state):
@@ -122,7 +129,7 @@ class JarvisGUI(QMainWindow):
             
             if self.engine:
                 # Manually trigger thinking state
-                self.engine.state_machine.set_state("THINKING")
+                self.engine.state_machine.set_state(VoiceState.THINKING)
                 threading.Thread(target=self._process_text_input, args=(text,)).start()
 
     def _process_text_input(self, text):
@@ -130,17 +137,17 @@ class JarvisGUI(QMainWindow):
             response = self.engine.router.route(text)
             reply = response.get("text")
             if reply:
-                self.engine.state_machine.set_state("SPEAKING")
+                self.engine.state_machine.set_state(VoiceState.SPEAKING)
                 self.engine.tts.start_tts_stream(reply)
             else:
-                self.engine.state_machine.set_state("IDLE")
+                self.engine.state_machine.set_state(VoiceState.IDLE)
 
     def toggle_listening(self):
         if self.engine:
-            if self.current_state == "LISTENING":
-                self.engine.state_machine.set_state("IDLE")
+            if self.current_state == VoiceState.LISTENING.value:
+                self.engine.state_machine.set_state(VoiceState.IDLE)
             else:
-                self.engine.state_machine.set_state("LISTENING")
+                self.engine.state_machine.set_state(VoiceState.LISTENING)
 
     def closeEvent(self, event):
         """Cleanup when window is closed"""

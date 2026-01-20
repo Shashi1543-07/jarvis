@@ -81,7 +81,7 @@ class AudioPreprocessor:
                 sr=self.target_sample_rate,
                 y_noise=noise_float,
                 stationary=True,
-                prop_decrease=0.8  # 80% noise reduction
+                prop_decrease=0.5  # Reduced from 0.8
             )
             
             return denoised
@@ -109,17 +109,17 @@ class AudioPreprocessor:
         """Check if audio has sufficient energy (not just noise)"""
         # Calculate RMS energy
         rms = np.sqrt(np.mean(audio_float32**2))
-        
-        # Minimum energy threshold
-        min_energy = 0.005
-        
+
+        # Minimum energy threshold - simplified for better sensitivity
+        min_energy = 0.0001 
+
         if rms < min_energy:
             return False
-        
+
         # Check for NaN or Inf
         if not np.isfinite(audio_float32).all():
             return False
-        
+
         return True
     
     def process_chunk(self, audio_chunk_bytes):
@@ -133,13 +133,11 @@ class AudioPreprocessor:
             return audio_chunk_bytes  # Return unprocessed during learning
         
         # Convert to float32
-        audio_float = self.bytes_to_float32(audio_chunk_bytes)
+        # audio_float = self.bytes_to_float32(audio_chunk_bytes)
+        # Skip per-chunk normalization to avoid noise pumping
+        # audio_float = self.normalize_audio(audio_float)
         
-        # Normalize (cheap operation, can do per-chunk)
-        audio_float = self.normalize_audio(audio_float)
-        
-        # Convert back to bytes
-        return self.float32_to_bytes(audio_float)
+        return audio_chunk_bytes
     
     def process_complete_audio(self, audio_buffer_list):
         """

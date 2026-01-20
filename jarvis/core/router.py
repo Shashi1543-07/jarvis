@@ -2,8 +2,8 @@ import json
 import inspect
 import datetime
 import atexit
-from core.brain import Brain
-from core.enhanced_memory import EnhancedMemory
+from .brain import Brain
+from .enhanced_memory import EnhancedMemory
 
 # Import all action modules
 from actions import (
@@ -140,7 +140,9 @@ class Router:
             suggestion_text = " ".join(suggestions[:1])
             final_text += f" By the way, {suggestion_text.lower()}"
 
-        return {"text": final_text}
+        # Return action name of the first action for state machine triggers (like sleep)
+        main_action = actions_to_run[0].get("action") if actions_to_run else None
+        return {"text": final_text, "action": main_action}
 
     def _log_action(self, action, params, result):
         try:

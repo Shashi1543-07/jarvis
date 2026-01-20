@@ -17,17 +17,17 @@ class VoiceActivityDetector:
 
         self.sample_rate = 16000
 
-        # Thresholds
-        self.base_threshold = 0.5
+        # Thresholds - made more sensitive
+        self.base_threshold = 0.10  # Lowered for better sensitivity (was 0.15)
         self.dynamic_threshold = self.base_threshold
 
         # Background noise learning
         self.noise_probs = []
-        self.noise_frames_needed = 30
+        self.noise_frames_needed = 15  # Faster learning (was 20)
         self.noise_learned = False
 
-        # Smoothing (reduces false positives)
-        self.smooth_window = deque(maxlen=5)
+        # Smoothing (reduces false positives but kept shorter for responsiveness)
+        self.smooth_window = deque(maxlen=3)  # Shorter window for faster response
 
         print("VAD: Loaded + smoothing + noise calibration enabled")
 
@@ -83,7 +83,7 @@ class VoiceActivityDetector:
 
         if smooth_prob > threshold:
             return True
-        if energy > 0.03 and smooth_prob > 0.25:
+        if energy > 0.0008 and smooth_prob > 0.08:  # Lowered thresholds for better sensitivity
             return True
 
         return False

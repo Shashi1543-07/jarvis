@@ -11,22 +11,30 @@ class EnhancedMemory:
         self.config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
         self.memory_file = os.path.join(self.config_dir, 'memory.json')
 
-        # Core memory structures
-        self.long_term = {}  # Key-value storage for user preferences
-        self.short_term = []  # Last 10 conversation turns - cleared on exit
-        self.sessions = []  # Session history
-        self.tasks = {}  # Ongoing tasks
+        # Core memory structures (Layered)
+        self.working_memory = []  # ENTITIES/TOPICS in current 15s window
+        self.short_term = []      # Last 10 conversation turns - cleared on exit
+        self.episodic_memory = [] # Session summaries and life events
+        self.semantic_memory = {} # VERIFIED FACTS: {subject: {fact_list: [{fact, confidence, confirmed}]}}
+
+        self.long_term = {}  # Legacy key-value storage
+        self.sessions = []   # Legacy session history
+        self.tasks = {}      # Ongoing tasks
 
         # Enhanced memory structures
-        self.emotions = []  # Track user emotions over time
-        self.personality_profile = {}  # User personality traits
-        self.conversation_patterns = {}  # Conversation patterns
-        self.relationships = {}  # Personal relationships
-        self.habits = {}  # User habits and routines
-        self.interests = set()  # User interests
-        self.favorites = {}  # User favorites
-        self.personal_history = []  # Important life events
-        self.temporary_context = []  # Context for current session only
+        self.emotions = []
+        self.personality_profile = {}
+        self.relationships = {} 
+        self.interests = set()
+        self.favorites = {}
+        self.personal_history = [] 
+        self.temporary_context = [] 
+
+        # Write-Block Patterns (Do not store if user asks these)
+        self.BLOCK_PATTERNS = [
+            r"^(who|what|where|when|why|how|can you|do you|is there|is my|tell me|recall|remind)",
+            r"\b(maybe|perhaps|probably|i think|not sure|guess|assume|might)\b"
+        ]
 
         # Embeddings cache (optional, loaded on demand)
         self.embeddings_model = None
@@ -46,6 +54,11 @@ class EnhancedMemory:
                     self.sessions = data.get('sessions', [])
                     self.tasks = data.get('tasks', {})
                     
+                    # New Layered Structures
+                    self.working_memory = data.get('working_memory', [])
+                    self.episodic_memory = data.get('episodic_memory', [])
+                    self.semantic_memory = data.get('semantic_memory', {})
+
                     # Load enhanced memory structures
                     self.emotions = data.get('emotions', [])
                     self.personality_profile = data.get('personality_profile', {})
@@ -97,6 +110,9 @@ class EnhancedMemory:
                 'short_term': self.short_term,
                 'sessions': self.sessions,
                 'tasks': self.tasks,
+                'working_memory': self.working_memory,
+                'episodic_memory': self.episodic_memory,
+                'semantic_memory': self.semantic_memory,
                 
                 # Save enhanced memory structures
                 'emotions': self.emotions,
@@ -198,11 +214,14 @@ class EnhancedMemory:
 
         self.save_memory()
 
-    def remember_relationship(self, person, relationship_type, details=""):
+    def remember_relationship(self, person, relationship_type, details="", source="manual", confidence=0.8):
         """Remember personal relationships"""
         self.relationships[person] = {
             'type': relationship_type,
             'details': details,
+            'source': source,
+            'confidence': confidence,
+            'timestamp': datetime.datetime.now().isoformat(),
             'last_interaction': datetime.datetime.now().isoformat()
         }
         self.save_memory()
@@ -279,28 +298,80 @@ class EnhancedMemory:
         self.save_memory() # Auto-save context
 
     def remember_conversation(self, user_input, ai_response):
-        """Remember a complete conversation turn"""
+        """Main entry point for storing conversation turns across memory layers."""
+        # 1. Update Working Memory (Entities/Pronouns window)
+        self.update_working_memory(user_input)
+
+        # 2. Add to Short Term (Conversation stream)
         conversation_entry = {
             'timestamp': datetime.datetime.now().isoformat(),
             'user': user_input,
             'ai': ai_response,
-            'mood': self.get_current_mood(),
-            'classification': self.classify_conversation_content(user_input, ai_response)[0]  # Store classification
+            'mood': self.get_current_mood()
         }
         self.short_term.append(conversation_entry)
-        if len(self.short_term) > 10:  # Keep last 10 interactions
+        if len(self.short_term) > 10:
             self.short_term.pop(0)
 
-        # Process conversation for important information to store in long-term memory
-        self.process_conversation_for_memory(user_input, ai_response)
+        # 3. Process for Semantic Memory (Factual commit - with strict blockers)
+        if not self.should_block_semantic_write(user_input):
+            self.process_conversation_for_memory(user_input, ai_response)
 
-        self.save_memory() # Auto-save turn
-
-        # Detect conversation patterns
+        self.save_memory()
         self.detect_conversation_pattern(user_input, ai_response)
-
-        # Extract interests from conversation
         self.extract_interests_from_conversation(user_input)
+
+    def update_working_memory(self, text):
+        """ prunes and updates entities for pronoun resolution (15s TTL) """
+        now = datetime.datetime.now()
+        # Prune expired (older than 15s)
+        self.working_memory = [m for m in self.working_memory 
+                              if (now - datetime.datetime.fromisoformat(m['timestamp'])).total_seconds() < 15]
+        
+        # Simple entity extraction (Capitalized words or specific patterns)
+        entities = re.findall(r'\b[A-Z][a-z]+\b', text)
+        for ent in entities:
+            if ent not in ["I", "Jarvis"]:
+                self.working_memory.append({
+                    'entity': ent,
+                    'timestamp': now.isoformat()
+                })
+
+    def should_block_semantic_write(self, text):
+        """ BLOCK if it's a question or uncertain """
+        text_lower = text.lower().strip()
+        for pattern in self.BLOCK_PATTERNS:
+            if re.search(pattern, text_lower):
+                return True
+        return False
+
+    def remember_semantic_fact(self, subject, fact_text, confidence=0.4, confirmed=False):
+        """ Store facts with confidence levels """
+        subject = subject.lower()
+        if subject not in self.semantic_memory:
+            self.semantic_memory[subject] = []
+        
+        # Check for existing similar fact
+        exists = False
+        for f in self.semantic_memory[subject]:
+            if f['fact'].lower() == fact_text.lower():
+                f['mentions'] = f.get('mentions', 1) + 1
+                f['confidence'] = min(1.0, f['confidence'] + 0.2)
+                if confirmed: f['confirmed'] = True
+                f['last_seen'] = datetime.datetime.now().isoformat()
+                exists = True
+                break
+        
+        if not exists:
+            self.semantic_memory[subject].append({
+                'fact': fact_text,
+                'confidence': 1.0 if confirmed else confidence,
+                'confirmed': confirmed,
+                'mentions': 1,
+                'last_seen': datetime.datetime.now().isoformat()
+            })
+        
+        print(f"Semantic Memory: Updated {subject} -> {fact_text}")
 
     def extract_interests_from_conversation(self, user_input):
         """Extract interests from user input"""
@@ -467,41 +538,36 @@ class EnhancedMemory:
 
             # Store in appropriate long-term memory sections
             for key, value in important_info.items():
-                if key == 'flight':
-                    self.remember_personal_event('flight', str(value))
-                elif key == 'appointment':
-                    self.remember_personal_event('appointment', str(value))
-                elif key == 'event':
-                    self.remember_personal_event('event', str(value))
+                if key in ['flight', 'appointment', 'event']:
+                    self.remember_semantic_fact('life_events', f"{key}: {value}", confidence=0.6)
+                    self.remember_personal_event(key, str(value)) # Legacy sync
                 elif key == 'emails':
+                    self.remember_semantic_fact('contact', f"email: {value}", confidence=0.8)
                     self.remember_contact_info('email', value)
                 elif key == 'phones':
+                    self.remember_semantic_fact('contact', f"phone: {value}", confidence=0.8)
                     self.remember_contact_info('phone', value)
-                elif key == 'addresses':
-                    self.remember_contact_info('address', value)
                 elif key == 'preferences':
                     for pref in value:
+                        self.remember_semantic_fact('preferences', f"likes {pref}", confidence=0.5)
                         self.remember_interest(pref)
                 elif key == 'relationships':
                     for rel in value:
-                        # Handle different tuple structures from various patterns
-                        if len(rel) == 3:  # Patterns 1, 2, 4, 5, or 8: various 3-element patterns
-                            if rel[0] in ['i have', 'have'] and rel[2]:  # Pattern 4: "I have a girlfriend named Jennifer" OR Pattern 8: "I have a girlfriend, I love her, her name is Akansha"
-                                # For pattern 8, rel[1] is the relationship type and rel[2] is the name
-                                # For pattern 4, rel[1] is the relationship type and rel[2] is the name
-                                self.remember_relationship(rel[2], rel[1], details=f"Relationship mentioned as '{rel[0]} a {rel[1]} named'")
-                            elif rel[0] in ['her', 'his', 'their']:  # Pattern 5: "her name is Akansha girlfriend" -> (Akansha, girlfriend)
-                                self.remember_relationship(rel[1], rel[2], details=f"Relationship mentioned as '{rel[0]} name is {rel[1]} {rel[2]}'")
-                            else:  # Patterns 1 or 2: "my girlfriend is Sarah" or "this is my girlfriend Sarah"
-                                self.remember_relationship(rel[2], rel[1], details=f"Relationship mentioned as '{rel[0]} {rel[1]}'")
-                        elif len(rel) == 2:  # Pattern 3, 6, or 7: various 2-element patterns
-                            if rel[0] in ['girlfriend', 'boyfriend', 'gf', 'bf', 'partner', 'spouse', 'wife', 'husband', 'mom', 'dad', 'mother', 'father', 'brother', 'sister', 'son', 'daughter', 'wife', 'husband', 'spouse', 'friend', 'colleague', 'boss', 'employee', 'crush', 'date', 'ex', 'ex-girlfriend', 'ex-boyfriend', 'ex-wife', 'ex-husband']:  # Pattern 6 or 7: "girlfriend Akansha" -> (Akansha, girlfriend)
-                                self.remember_relationship(rel[1], rel[0])
-                            else:  # Pattern 3: (name, relation) -> (name, relation)
-                                self.remember_relationship(rel[0], rel[1])
+                        person = ""
+                        rel_type = ""
+                        if len(rel) == 3:
+                            person = rel[2]
+                            rel_type = rel[1]
+                        elif len(rel) == 2:
+                            person = rel[0] if rel[1] in ["friend", "father", "mother", "mom", "dad"] else rel[1]
+                            rel_type = rel[1] if rel[1] in ["friend", "father", "mother", "mom", "dad"] else rel[0]
+                        
+                        if person and rel_type:
+                            self.remember_semantic_fact('relationships', f"{person} is {rel_type}", confidence=0.6)
+                            self.remember_relationship(person, rel_type) # Legacy sync
 
             print(f"Stored important information: {important_info}")
-            return True  # Indicates important info was processed
+            return True
 
         return False  # Indicates general command, no important info to store
 
@@ -520,46 +586,51 @@ class EnhancedMemory:
                 context_lines.append(f"Context: {str(entry)}")
         return "\n".join(context_lines)
 
-    def get_memory_context(self):
-        """Get a comprehensive memory context for AI responses"""
-        context_parts = []
-        
-        # Add user info
-        user_info = self.long_term.get('user_info', {})
-        if user_info:
-            context_parts.append(f"User Information: {user_info}")
-        
-        # Add current mood
-        mood = self.get_current_mood()
-        context_parts.append(f"Current Mood: {mood}")
-        
-        # Add personality profile
-        if self.personality_profile:
-            context_parts.append(f"Personality Profile: {self.personality_profile}")
-        
-        # Add recent conversations
-        recent_conv = self.get_short_term_as_string(3)
-        if recent_conv:
-            context_parts.append(f"Recent Conversations: {recent_conv}")
-        
-        # Add interests
-        if self.interests:
-            context_parts.append(f"Interests: {', '.join(list(self.interests)[:10])}")  # Limit to 10
-        
-        # Add favorites
-        if self.favorites:
-            context_parts.append(f"Favorites: {self.favorites}")
-        
-        # Add relationships
-        if self.relationships:
-            rel_list = [f"{p} ({d['type']})" for p, d in self.relationships.items()]
-            context_parts.append(f"Relationships: {', '.join(rel_list)}")
-        
-        # Add habits
-        if self.habits:
-            context_parts.append(f"Habits: {list(self.habits.keys())[:10]}")  # Limit to 10
-        
+        # Add working memory context
+        if self.working_memory:
+            entities = [m['entity'] for m in self.working_memory]
+            context_parts.append(f"Immediate Context (Entities): {', '.join(entities)}")
+
+        # Add semantic facts (Verified only)
+        verified_facts = []
+        for subject, facts in self.semantic_memory.items():
+            for f in facts:
+                if f['confidence'] > 0.6 or f['confirmed']:
+                    verified_facts.append(f"{subject}: {f['fact']}")
+        if verified_facts:
+            context_parts.append(f"Verified Facts: {', '.join(verified_facts[:15])}")
+
         return "\n".join(context_parts)
+
+    def add_episodic_summary(self, summary, mood="neutral"):
+        """ Summarize a session for episodic memory """
+        entry = {
+            'date': datetime.datetime.now().isoformat(),
+            'summary': summary,
+            'mood': mood,
+            'importance': 1.0
+        }
+        self.episodic_memory.append(entry)
+        self.prune_episodic_memory()
+        self.save_memory()
+
+    def prune_episodic_memory(self):
+        """ Expire episodic memory older than 30 days """
+        now = datetime.datetime.now()
+        self.episodic_memory = [e for e in self.episodic_memory 
+                               if (now - datetime.datetime.fromisoformat(e['date'])).days < 30]
+
+    def forget_this(self, keyword):
+        """ Professional 'Forget this' capability """
+        keyword = keyword.lower()
+        # Clear from long_term
+        if keyword in self.long_term: del self.long_term[keyword]
+        # Clear from semantic
+        if keyword in self.semantic_memory: del self.semantic_memory[keyword]
+        # Search and remove from facts/relationships
+        self.relationships = {p: d for p, d in self.relationships.items() if keyword not in p.lower()}
+        self.save_memory()
+        return f"I have purged all records of {keyword} from my systems, Sir."
 
     def add_fact(self, subject, fact):
         """Add a factual memory"""
@@ -742,15 +813,21 @@ class EnhancedMemory:
     def prepare_for_exit(self):
         """
         Prepare for program exit by clearing only temporary memory
-        while preserving important long-term memory
+        while preserving important long-term memory.
+        Generates an episodic summary of the session.
         """
-        # Clear only short-term memory and temporary context
+        # 1. Generate episodic summary if there was conversation
+        if self.short_term:
+            summary = self.get_short_term_as_string(count=5)
+            self.add_episodic_summary(f"Interaction highlights: {summary}", mood=self.get_current_mood())
+
+        # 2. Clear only short-term memory and temporary context
         self.short_term = []
         self.temporary_context = []
 
-        # Save the cleaned memory state
+        # 3. Save the cleaned memory state
         self.save_memory()
-        print("Temporary memory cleared. Long-term memory preserved.")
+        print("Temporary memory cleared. Episodic summary saved. Long-term memory preserved.")
 
     def clear_long_term_memory(self, category=None):
         """Clear long-term memory, optionally by category"""

@@ -1,20 +1,19 @@
 import json
 import os
 
-# Use the centralized Memory class for all memory operations
-from core.memory import Memory
+from core.enhanced_memory import EnhancedMemory
 
 def remember_user_preference(key, value):
     """Remember a user preference persistently"""
     print(f"Remembering preference: {key} = {value}")
-    mem = Memory()
+    mem = EnhancedMemory()
     mem.remember_preference(key, value)
     return f"Remembered that {key} is {value}"
 
 def memorize_fact(fact):
     """Store a general fact in long-term memory"""
     print(f"Memorizing fact: {fact}")
-    mem = Memory()
+    mem = EnhancedMemory()
     
     # Try to categorize it automatically or just save as a general fact
     # For now, we use the text as both subject and fact for simple retrieval
@@ -25,7 +24,7 @@ def memorize_fact(fact):
 def recall_memory(key):
     """Recall information using semantic search or direct lookup"""
     print(f"Recalling memory: {key}")
-    mem = Memory()
+    mem = EnhancedMemory()
     
     # 1. Try Semantic Search first (Powerful)
     results = mem.search_memory(key, top_k=1)
@@ -48,14 +47,14 @@ def recall_memory(key):
 def update_memory(key, value):
     """Update a memory value"""
     print(f"Updating memory: {key} = {value}")
-    mem = Memory()
+    mem = EnhancedMemory()
     mem.set(key, value)
     return f"Updated memory for {key}"
 
 def delete_memory(key):
     """Delete a memory"""
     print(f"Deleting memory: {key}")
-    mem = Memory()
+    mem = EnhancedMemory()
     
     # Check preferences
     if 'preferences' in mem.long_term and key in mem.long_term['preferences']:
@@ -78,7 +77,7 @@ def forget_memory(key):
 def list_memories():
     """List all memories"""
     print("Listing all memories...")
-    mem = Memory()
+    mem = EnhancedMemory()
     return json.dumps(mem.long_term, indent=2)
 
 # ===== NEW: Session and Task Memory Actions =====
@@ -86,16 +85,16 @@ def list_memories():
 def save_session_summary(summary):
     """Save a summary of the current session"""
     print(f"Saving session summary: {summary}")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     mem.add_session(summary)
     return "Session summary saved."
 
 def get_recent_sessions(count=5):
     """Get recent session summaries"""
     print(f"Getting {count} recent sessions...")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     sessions = mem.get_recent_sessions(count)
     if sessions:
         result = "\n".join([f"[{s['timestamp']}] {s['summary']}" for s in sessions])
@@ -105,24 +104,24 @@ def get_recent_sessions(count=5):
 def remember_task(task_name, description):
     """Remember an ongoing task"""
     print(f"Remembering task: {task_name}")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     mem.add_task(task_name, {'description': description, 'status': 'active'})
     return f"Task '{task_name}' remembered."
 
 def update_task_status(task_name, status):
     """Update task status"""
     print(f"Updating task {task_name} status: {status}")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     mem.update_task(task_name, {'status': status})
     return f"Task '{task_name}' updated."
 
 def recall_task(task_name):
     """Recall task details"""
     print(f"Recalling task: {task_name}")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     task = mem.get_task(task_name)
     if task:
         return f"Task '{task_name}': {task['data']}"
@@ -131,8 +130,8 @@ def recall_task(task_name):
 def list_tasks():
     """List all active tasks"""
     print("Listing all tasks...")
-    from core.memory import Memory
-    mem = Memory()
+    from core.enhanced_memory import EnhancedMemory
+    mem = EnhancedMemory()
     tasks = mem.list_tasks()
     if tasks:
         return f"Active tasks: {', '.join(tasks)}"
@@ -142,7 +141,7 @@ def complete_task(task_name):
     """Mark task as complete"""
     print(f"Completing task: {task_name}")
     from core.memory import Memory
-    mem = Memory()
+    mem = EnhancedMemory()
     mem.complete_task(task_name)
     return f"Task '{task_name}' marked as complete."
 

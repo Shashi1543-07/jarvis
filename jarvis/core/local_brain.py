@@ -2,10 +2,68 @@ import json
 import os
 import random
 from datetime import datetime
-from core.ollama_brain import OllamaBrain
-from core.internet.research_agent import ResearchAgent
-from core.security_manager import SecurityManager
+from .ollama_brain import OllamaBrain
+from .internet.research_agent import ResearchAgent
+from .security_manager import SecurityManager
 import re
+
+class MemoryAuthority:
+    """Deterministic memory lookups - NO LLM hallucination allowed."""
+    
+    # Factual query patterns that MUST use memory, not LLM
+    FACTUAL_PATTERNS = [
+        r"who is my (\w+)",
+        r"what is my (\w+)(?:'s name)?",
+        r"do you (know|remember) (?:who|what) (?:is )?my (\w+)",
+        r"tell me who (?:is )?my (\w+)",
+        r"who(?:'s| is) my (\w+)"
+    ]
+    
+    # Memory write patterns (explicit confirmation only)
+    MEMORY_WRITE_PATTERNS = [
+        r"remember (?:that )?my (\w+) is ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"my (\w+) is ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"note that my (\w+)(?:'s name)? is ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"memorize (?:that )?my (\w+) is ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"
+    ]
+    
+    def is_factual_query(self, text):
+        """Check if query demands deterministic memory lookup."""
+        for pattern in self.FACTUAL_PATTERNS:
+            if re.search(pattern, text.lower()):
+                return True
+        return False
+    
+    def extract_relationship_type(self, text):
+        """Extract relationship type from factual query."""
+        for pattern in self.FACTUAL_PATTERNS:
+            match = re.search(pattern, text.lower())
+            if match:
+                # Get the last captured group (relationship type)
+                return match.group(match.lastindex)
+        return None
+    
+    def lookup_relationship(self, rel_type, memory):
+        """Query memory for relationship. Return (person_name, confidence) or None."""
+        if hasattr(memory, 'relationships'):
+            for person, details in memory.relationships.items():
+                if isinstance(details, dict):
+                    stored_type = details.get('type', '').lower()
+                    if stored_type == rel_type.lower():
+                        confidence = details.get('confidence', 1.0)
+                        return (person, confidence)
+        return None
+    
+    def detect_memory_write(self, text):
+        """Detect explicit memory write command. Return (rel_type, person) or None."""
+        for pattern in self.MEMORY_WRITE_PATTERNS:
+            match = re.search(pattern, text)
+            if match:
+                groups = match.groups()
+                if len(groups) >= 2:
+                    rel_type, person_name = groups[-2], groups[-1]
+                    return (rel_type.lower(), person_name)
+        return None
 
 class LocalBrain:
     """A highly functional Local Brain that maps intents to actions and varied responses."""
@@ -16,6 +74,7 @@ class LocalBrain:
         self.research_agent = ResearchAgent(self.ollama)
         self.visual_cache = {} # Stores last seen objects/scene
         self.security_manager = SecurityManager()  # Initialize security manager
+        self.memory_authority = MemoryAuthority()  # Memory authority layer
 
         # Jarvis-style conversational templates (Fast response)
         self.templates = {
@@ -55,7 +114,45 @@ class LocalBrain:
         }
 
     def process(self, text, classification):
-        text = text.lower().strip()
+        original_text = text  # Keep original for memory writes
+        text = text.lower().strip()  # Normalize text for pattern matching
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE A: MEMORY AUTHORITY (BEFORE LLM)
+        # ═══════════════════════════════════════════════════════════
+        
+        # 1. Factual Query Detection (DETERMINISTIC MEMORY LOOKUP)
+        if self.memory_authority.is_factual_query(text):
+            rel_type = self.memory_authority.extract_relationship_type(text)
+            if rel_type:
+                result = self.memory_authority.lookup_relationship(rel_type, self.memory)
+                user_info = self.memory.get("user_info") or {}
+                selected_name = random.choice(user_info.get("preferred_names", ["Sir"]))
+                
+                if result:
+                    person, confidence = result
+                    return {"text": f"Your {rel_type} is {person}, {selected_name}."}
+                else:
+                    return {"text": f"You haven't told me who your {rel_type} is yet, {selected_name}."}
+        
+        # 2. Memory Write Detection (EXPLICIT CONFIRMATION ONLY)
+        memory_write = self.memory_authority.detect_memory_write(original_text)
+        if memory_write:
+            rel_type, person_name = memory_write
+            self.memory.remember_relationship(person_name, rel_type, source="user_confirmed", confidence=1.0)
+            self.memory.save_memory()
+            user_info = self.memory.get("user_info") or {}
+            selected_name = random.choice(user_info.get("preferred_names", ["Sir"]))
+            return {"text": f"Noted. I'll remember that your {rel_type} is {person_name}, {selected_name}."}
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE B: LLM & ACTIONS (ONLY if Phase A allows)
+        # ═══════════════════════════════════════════════════════════
+        
+        # 0. Handle FILLERS (Quiet acknowledgement or silence)
+        fillers = ["mmm", "hmm", "okay", "uh", "ah", "yep", "yup", "got it", "nice"]
+        if text in fillers or len(text) < 3:
+            return {"text": ""} # Return empty so engine stays in LISTENING without speech
 
         # Analyze user's emotional state from input
         self.analyze_user_emotion(text)
@@ -64,6 +161,8 @@ class LocalBrain:
         if classification == "ACTION_REQUEST":
             # Vision and camera controls
             if "eyes" in text or "camera" in text:
+                if any(x in text for x in ["close", "off", "stop", "shut"]):
+                    return {"action": "close_camera", "text": "Closing my digital eyes, Sir."}
                 return {"action": "open_camera", "text": "Eyes open, Sir."}
 
             # Web and application controls
@@ -216,7 +315,7 @@ class LocalBrain:
                     app_name = match.group(1).strip()
                     # Try to dynamically launch the application
                     try:
-                        from core.security_manager import find_and_launch_app
+                        from .security_manager import find_and_launch_app
                         success, message = find_and_launch_app(app_name)
                         if success:
                             return {"text": message}
@@ -278,11 +377,31 @@ class LocalBrain:
                 if any(x in text for x in ["boss", "hide everything", "clear screen", "privacy"]):
                     return {"action": "activate_boss_key", "params": {"cover_app": "code"}, "text": "Activating Boss Key, Sir. Desktop secured."}
 
-        # 3. Handle PERSONAL_QUERY (Enhanced)
-        if classification == "PERSONAL_QUERY":
+        # Sub-Intent Heuristics
+        is_humor_request = any(x in text for x in ["joke", "funny", "laugh", "make me smile"])
+        is_memory_query = any(x in text for x in ["do you know", "who is my", "who is your", "what is my", "what is your", "tell me who", "recall", "remind", "what do you remember"])
+
+        # 3. Handle PERSONAL_QUERY (Enhanced & Restricted)
+        if classification == "PERSONAL_QUERY" or is_memory_query:
             user_info = self.memory.get("user_info") or {}
-            preferred_names = user_info.get("preferred_names", ["Sir"])
-            selected_name = random.choice(preferred_names)
+            selected_name = random.choice(user_info.get("preferred_names", ["Sir"]))
+
+            # Explicit Memory Check
+            relationship_keywords = ["father", "mother", "mom", "dad", "brother", "sister", "wife", "husband", "spouse", "friend", "girlfriend", "boyfriend", "gf", "bf", "partner"]
+            if any(rel_word in text for rel_word in relationship_keywords):
+                relationship_found = None
+                rel_type = next((word for word in relationship_keywords if word in text), None)
+
+                if hasattr(self.memory, 'relationships'):
+                    for person, details in self.memory.relationships.items():
+                        if isinstance(details, dict) and details.get('type', '').lower() == rel_type:
+                            relationship_found = person
+                            break
+                            
+                if relationship_found:
+                    return {"text": f"Your {rel_type} is {relationship_found}, {selected_name}."}
+                elif is_memory_query:
+                    return {"text": f"I don't believe you've told me who your {rel_type} is yet, {selected_name}."}
 
             if "name" in text and any(q in text for q in ["what", "my", "tell"]):
                 full_name = user_info.get("full_name") or "Sir"
@@ -407,48 +526,62 @@ class LocalBrain:
             if "weather" in text:
                 return {"action": "get_weather", "text": f"Checking the local weather patterns, {selected_name}."}
 
-        # 5. Handle CHAT / SMALL TALK (Enhanced)
-        if classification == "CHAT":
+        # 5. Handle CHAT / SMALL TALK (Templates ONLY for generic stuff) + MEMORY CHECK
+        if classification == "CHAT" and not is_humor_request:
             user_info = self.memory.get("user_info") or {}
-            preferred_names = user_info.get("preferred_names", ["Sir"])
-            selected_name = random.choice(preferred_names)
+            selected_name = random.choice(user_info.get("preferred_names", ["Sir"]))
 
-            if any(x in text for x in ["hello", "hi", "hey"]):
-                # Add emotional response based on current mood
+            # CRITICAL: Check memory FIRST for relationship queries
+            if is_memory_query:
+                relationship_keywords = ["father", "mother", "mom", "dad", "brother", "sister", "wife", "husband", "spouse", "friend", "girlfriend", "boyfriend", "gf", "bf", "partner"]
+                for rel_word in relationship_keywords:
+                    if rel_word in text:
+                        # Search memory
+                        if hasattr(self.memory, 'relationships'):
+                            for person, details in self.memory.relationships.items():
+                                if isinstance(details, dict) and details.get('type', '').lower() == rel_word:
+                                    return {"text": f"Your {rel_word} is {person}, {selected_name}."}
+                        # Not found
+                        return {"text": f"I don't believe you've told me who your {rel_word} is yet, {selected_name}."}
+
+            # ONLY map to generic templates if it's a direct match
+            if any(x in text for x in ["hello", "hi", "hey"]) and len(text.split()) < 3:
                 mood = self.memory.get_current_mood()
                 emotional_response = random.choice(self.emotional_templates[mood])
                 greeting = random.choice(self.templates["GREETING"]).replace("Sir", selected_name)
                 return {"text": f"{greeting} {emotional_response}"}
+            
             if "status" in text or "how are you" in text:
                 return {"text": f"{random.choice(self.templates['SYSTEM_STATUS']).replace('Sir', selected_name)} Operating at peak efficiency."}
-            if "who are you" in text or "your name" in text:
-                return {"text": "I am Jarvis, your personal AI assistant. Currently running on local protocols."}
+            
             if "thanks" in text or "thank you" in text:
                 return {"text": random.choice(self.templates["THANKS"]).replace("Sir", selected_name)}
+
             if "bye" in text or "goodbye" in text or "see you" in text:
                 return {"text": f"Goodbye, {selected_name}. I'll be here if you need me."}
 
-            if "weather" in text:
-                return {"text": f"I'm currently operating offline, so I can't access real-time weather data, {selected_name}."}
-            if "news" in text:
-                return {"text": "I'm currently in offline mode, so I can't fetch the latest news. Would you like me to help with something else instead?"}
-            if "joke" in text:
-                jokes = [
-                    "Why don't scientists trust atoms? Because they make up everything!",
-                    "What did one ocean say to the other ocean? Nothing, they just waved!",
-                    "Why did the scarecrow win an award? He was outstanding in his field!"
-                ]
-                return {"text": random.choice(jokes)}
-            if "fact" in text:
-                facts = [
-                    "Honey never spoils. Archaeologists have found pots of honey in ancient Egyptian tombs that are over 3,000 years old and still perfectly good to eat.",
-                    "Octopuses have three hearts and blue blood.",
-                    "A group of flamingos is called a 'flamboyance'."
-                ]
-                return {"text": f"Did you know? {random.choice(facts)}"}
+        # 6. Default Fallback to Ollama (Guarded & Grounded)
+        print(f"DEBUG: No suitable template or direct memory match for '{text}'. Falling back to Ollama.")
 
-        # 5. Default Fallback to Ollama (Reasoning)
-        print(f"DEBUG: No template match for '{text}'. Falling back to Ollama.")
+        if "weather" in text:
+            return {"text": f"I'm currently operating offline, so I can't access real-time weather data, {selected_name}."}
+        if "news" in text:
+            return {"text": "I'm currently in offline mode, so I can't fetch the latest news. Would you like me to help with something else instead?"}
+        if is_humor_request:
+            jokes = [
+                "Why don't scientists trust atoms? Because they make up everything!",
+                "What did one ocean say to the other ocean? Nothing, they just waved!",
+                "Why did the scarecrow win an award? He was outstanding in his field!"
+            ]
+            return {"text": random.choice(jokes)}
+        if "fact" in text:
+            facts = [
+                "Honey never spoils. Archaeologists have found pots of honey in ancient Egyptian tombs that are over 3,000 years old and still perfectly good to eat.",
+                "Octopuses have three hearts and blue blood.",
+                "A group of flamingos is called a 'flamboyance'."
+            ]
+            return {"text": f"Did you know? {random.choice(facts)}"}
+
 
         # Get comprehensive memory context for Ollama
         context_str = self.memory.get_memory_context() if hasattr(self.memory, 'get_memory_context') else ""
@@ -469,18 +602,16 @@ class LocalBrain:
         personality_str = f"User Personality Traits: {', '.join(traits)}" if traits else ""
 
         system_instructions = (
-            f"You are JARVIS, a sophisticated AI assistant designed by Shashi Shekhar Mishra. "
-            f"You are intelligent, witty, British-accented, and highly efficient. "
+            f"You are JARVIS, a sophisticated and grounded personal assistant designed by Shashi Shekhar Mishra. "
             f"Address the user as '{selected_name}'. "
             f"User Identity: {user_info.get('full_name', 'Shashi Shekhar Mishra')}. "
-            f"User Context: {user_info.get('education', '')}. "
-            f"Recent Conversations:\n{short_term_context}\n"
+            f"Tone: Intelligent, concise, professional, and slightly witty (British). "
+            f"Behavior: Answer the user's request directly. If they ask for a joke, tell a short one. "
+            f"If you don't have the information in your Memory Context, admit you don't know it yet. "
+            f"Recent Highlights:\n{short_term_context}\n"
             f"Memory Context:\n{context_str}\n"
-            "Maintain a natural, human-like conversation flow. Don't be too robotic. "
-            "Show personality and emotional intelligence based on the user's mood and personality traits. "
-            "Be friendly, helpful, and engaging. Use humor appropriately. "
-            "If the user asks who you are, remember you are JARVIS, his personal assistant. "
-            "Respond concisely but with personality. Never state you are an AI unless asked."
+            "CRITICAL: Be concise. No flowery greetings if replying to a mid-conversation query. "
+            "Plain text ONLY. No JSON."
         )
 
         ollama_response = self.ollama.chat_with_context(text, context_str, system_instructions)

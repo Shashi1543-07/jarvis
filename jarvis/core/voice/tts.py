@@ -46,7 +46,7 @@ class TextToSpeechEngine:
         print("TTS: Stopped immediately")
 
     def is_speaking(self):
-        return self.is_playing
+        return self.is_playing or not self.speech_queue.empty()
 
     def _worker(self):
         """Worker thread that processes speech queue"""

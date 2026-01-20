@@ -19,19 +19,10 @@ def main():
     router = Router()
     print("Router initialized.")
     
-    # Check for voice mode argument or default to text for now if libs fail
-    try:
-        print("Attempting to initialize voice modules...")
-        speech_in = SpeechIn()
-        speech_out = SpeechOut()
-        voice_mode = True
-        print("Voice modules initialized successfully.")
-    except Exception as e:
-        print(f"Failed to initialize voice modules: {e}")
-        print("Falling back to TEXT mode.")
-        voice_mode = False
-        speech_in = None
-        speech_out = None
+    # Voice mode setup (using new AudioEngine)
+    voice_mode = True
+    speech_in = None
+    speech_out = None
 
     # GUI Mode Selection (Hardcoded to True for this phase, can be arg)
     USE_GUI = True
@@ -89,7 +80,7 @@ def main():
                     break
                 
                 response = router.route(user_input)
-                print(f"Jarvis: {response['reply']}")
+                print(f"Jarvis: {response['text']}")
                 
         except KeyboardInterrupt:
             print("\nJarvis: Shutting down...")

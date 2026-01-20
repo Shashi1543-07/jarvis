@@ -65,7 +65,7 @@ class SpeechToTextEngine:
         # Minimum duration check (avoid transcribing tiny/noisy chunks)
         total_samples = len(processed_audio) // 2  # int16 => 2 bytes
         duration_sec = total_samples / float(self.sample_rate)
-        if duration_sec < 0.35:
+        if duration_sec < 0.2:
             print(f"STT: Utterance too short ({duration_sec:.2f}s), ignoring")
             return ""
 

@@ -18,50 +18,7 @@
             "general": []
         }
     },
-    "short_term": [
-        {
-            "timestamp": "2026-01-19T21:59:59.921254",
-            "user": "open chrome",
-            "ai": "Launching Chrome.",
-            "mood": "positive",
-            "classification": "general"
-        },
-        {
-            "timestamp": "2026-01-19T22:00:01.249008",
-            "user": "what is my name",
-            "ai": "Your name is Shashi Shekhar Mishra, but I usually address you as Shashi.",
-            "mood": "positive",
-            "classification": "general"
-        },
-        {
-            "timestamp": "2026-01-19T22:00:05.668214",
-            "user": "who is my father",
-            "ai": "Right, well, that’s a rather... *specific* question, isn’t it? Let’s just say you’ve got a lineage of fascinating individuals. 😉  I’m flattered, I suppose!  But I’m designed to be a helpful assistant, not a repository of family history – though, naturally, I have access to a *lot* of information.  Essentially, you've inherited a fantastic collection of brilliant minds.  Would you like me to elaborate on that, perhaps with a bit of playful speculation?",
-            "mood": "positive",
-            "classification": "general"
-        },
-        {
-            "timestamp": "2026-01-19T22:00:05.678185",
-            "user": "shutdown system tronix",
-            "ai": "Shutting down system.",
-            "mood": "positive",
-            "classification": "general"
-        },
-        {
-            "timestamp": "2026-01-19T22:00:10.921987",
-            "user": "show my personal info tronix",
-            "ai": "Alright, Mr. Mishra. Let’s get you all sorted. Your personal information is… well, let’s just say it’s a meticulously crafted collection. I’ve cross-referenced it with various databases and compiled it into a rather comprehensive profile.\n\nYou’re Shashi Shekhar Mishra, B.Tech in Electrical and Computer Engineering, 1st year, VNIT Nagpur. You’re currently part of a class of 128 students – 99 boys and 29 girls.\n\nI’ve also noted a penchant for programming, a love for pizza, and a surprising appreciation for Italian cuisine. You have a habit of morning jogs and a preference for engaging activities after midnight. 😉\n\nWould you like me to delve deeper into any of that, or perhaps… *suggest* a delightful pizza?",
-            "mood": "positive",
-            "classification": "general"
-        },
-        {
-            "timestamp": "2026-01-19T22:00:10.928124",
-            "user": "launch notepad",
-            "ai": "Opening Notepad.",
-            "mood": "positive",
-            "classification": "general"
-        }
-    ],
+    "short_term": [],
     "sessions": [
         {
             "timestamp": "2025-12-01T19:20:27.622950",
@@ -86,6 +43,9 @@
             }
         }
     },
+    "working_memory": [],
+    "episodic_memory": [],
+    "semantic_memory": {},
     "emotions": [
         {
             "timestamp": "2026-01-19T20:04:41.482061",
@@ -133,7 +93,7 @@
             "timestamp": "2026-01-19T20:32:23.248759",
             "emotion": "happy",
             "intensity": 1,
-            "context": "i love pizza and italian food"
+            "context": "i love aalu paratha, matar poodi"
         },
         {
             "timestamp": "2026-01-19T20:32:39.069360",
@@ -145,13 +105,19 @@
             "timestamp": "2026-01-19T20:33:48.536499",
             "emotion": "happy",
             "intensity": 1,
-            "context": "i love pizza and italian food"
+            "context": "i love "
         },
         {
             "timestamp": "2026-01-19T20:34:04.325163",
             "emotion": "happy",
             "intensity": 1,
             "context": "i feel happy and excited about my upcoming trip"
+        },
+        {
+            "timestamp": "2026-01-20T13:55:24.902704",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "like memory.json, secret.json, internet, os, productivity, vision, voice, initial.python,  ac, automatic echo cancellation, enhanced.python, ac.python, audio processor.python, mic.python,  noise suppression, real-time.python, speaker.  the file contains around 85,000 supply and support.  and great, great, great."
         }
     ],
     "personality_profile": {
@@ -160,12 +126,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-01-19T22:00:10.926409"
+        "last_analysis": "2026-01-20T13:55:24.900953"
     },
     "conversation_patterns": {
         "other": 40,
         "question": 9,
-        "statement": 1
+        "statement": 8
     },
     "relationships": {
         "John": {
@@ -173,49 +139,9 @@
             "details": "works at Google",
             "last_interaction": "2026-01-19T20:04:41.487488"
         },
-        "Sarah": {
-            "type": "girlfriend",
-            "details": "",
-            "last_interaction": "2026-01-19T21:02:47.842579"
-        },
-        "Lisa": {
-            "type": "girlfriend",
-            "details": "Relationship mentioned as 'This is my girlfriend'",
-            "last_interaction": "2026-01-19T21:02:47.841373"
-        },
-        "This": {
-            "type": "girlfriend",
-            "details": "",
-            "last_interaction": "2026-01-19T20:56:52.789095"
-        },
-        "Emma Watson": {
-            "type": "girlfriend",
-            "details": "Relationship mentioned as 'My girlfriend'",
-            "last_interaction": "2026-01-19T21:02:47.839615"
-        },
-        "Jennifer": {
-            "type": "girlfriend",
-            "details": "Relationship mentioned as 'I have girlfriend'",
-            "last_interaction": "2026-01-19T21:02:47.843802"
-        },
-        "she": {
-            "type": "girlfriend",
-            "details": "",
-            "last_interaction": "2026-01-19T21:02:41.718924"
-        },
         "Akansha": {
             "type": "girlfriend",
             "details": "User's girlfriend",
-            "last_interaction": "2026-01-19T21:14:05.538041"
-        },
-        "ravishankar mishra": {
-            "type": "father",
-            "details": "Relationship mentioned as 'my father'",
-            "last_interaction": "2026-01-19T21:12:30.519553"
-        },
-        "akansha": {
-            "type": "girlfriend",
-            "details": "Relationship mentioned as 'my girlfriend'",
             "last_interaction": "2026-01-19T21:12:30.521198"
         },
         "Ravishankar Mishra": {
@@ -243,12 +169,13 @@
         }
     },
     "interests": [
-        "programming",
-        "pizza",
-        "pizza?",
         "ai",
+        "pizza?",
         "pizza and italian food",
-        "technology"
+        "technology",
+        "programming",
+        "memory.json,",
+        "pizza"
     ],
     "favorites": {
         "music": [
@@ -261,8 +188,8 @@
     "personal_history": [
         {
             "type": "birthday",
-            "description": "My birthday is June 15th",
-            "date": "2023-06-15"
+            "description": "My birthday is 11th December",
+            "date": "2020-12-11"
         },
         {
             "type": "graduation",

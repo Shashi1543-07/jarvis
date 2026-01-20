@@ -28,6 +28,11 @@ class OllamaBrain:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "repeat_penalty": 1.1,
+                "num_predict": 256
+            }
         }
         
         try:

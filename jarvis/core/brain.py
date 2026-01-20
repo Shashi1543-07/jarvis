@@ -1,13 +1,13 @@
-from core.classifier import QueryClassifier
-from core.local_brain import LocalBrain
+from .classifier import QueryClassifier
+from .local_brain import LocalBrain
 import json
 import subprocess
 import requests
 import time
 import datetime
-from core.briefing_manager import BriefingManager
-from core.enhanced_memory import EnhancedMemory # Changed to use enhanced memory
-from core.behavior_learning import BehaviorLearning
+from .briefing_manager import BriefingManager
+from .enhanced_memory import EnhancedMemory # Changed to use enhanced memory
+from .behavior_learning import BehaviorLearning
 
 class Brain:
     def __init__(self, memory=None):
