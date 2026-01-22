@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>JARVIS • Neo HUD</title>
+    <title>J.A.R.V.I.S</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
         :root {
@@ -15,152 +15,117 @@
             --border: rgba(0, 234, 255, 0.35);
         }
 
-        * {
-            box-sizing: border-box;
-        }
-
         body {
             margin: 0;
             background: radial-gradient(circle at top, #08131f, var(--bg));
             color: var(--cyan);
             font-family: 'Segoe UI', system-ui, sans-serif;
             overflow: hidden;
-        }
-
-        /* ====== LAYOUT ====== */
-        #root {
+            height: 100vh;
             display: grid;
             grid-template-columns: 320px 1fr 360px;
             grid-template-rows: 80px 1fr 220px;
-            height: 100vh;
             gap: 12px;
             padding: 12px;
+            box-sizing: border-box;
         }
 
-        header {
-            grid-column: 1 / -1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 20px;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            backdrop-filter: blur(12px);
-        }
-
-        .datetime-display {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
-            font-size: 14px;
-        }
-
+        /* GLOBALS */
         .panel {
             background: var(--glass);
             border: 1px solid var(--border);
             backdrop-filter: blur(12px);
             padding: 14px;
-            overflow: hidden;
-        }
-
-        #center {
             position: relative;
-            display: flex;
-            flex-direction: column;
-            /* Center title, reactor, state vertically */
-            justify-content: center;
-            align-items: center;
         }
 
-        #terminal {
+        .glow-text {
+            text-shadow: 0 0 10px var(--cyan);
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        /* HEADER */
+        header {
             grid-column: 1 / -1;
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            background: var(--glass);
+            border: 1px solid var(--border);
         }
 
-        /* ====== TEXT ====== */
-        .title {
-            letter-spacing: 3px;
-            font-weight: 600;
-        }
-
-        .status {
-            color: var(--amber);
+        #bridge-status {
+            font-size: 10px;
             font-weight: bold;
-            text-transform: uppercase;
+            margin-left: 15px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+            transition: all 0.3s;
         }
 
-        .metric {
-            margin-bottom: 10px;
+        #bridge-status.connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ffaa;
         }
 
-        .bar {
+        /* METRICS */
+        .metric-row {
+            margin-bottom: 12px;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .bar-bg {
             height: 6px;
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.1);
             position: relative;
-            margin-top: 4px;
         }
 
-        .bar>span {
+        .bar-fill {
             position: absolute;
-            inset: 0;
+            left: 0;
+            top: 0;
+            bottom: 0;
             width: 0%;
             background: linear-gradient(90deg, var(--cyan), var(--blue));
-            transition: width 0.4s ease;
+            transition: width 0.3s ease-out;
         }
 
-        /* ====== TERMINAL ====== */
-        #log {
-            flex: 1;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 13px;
-            padding: 8px;
-        }
-
-        #input {
-            border-top: 1px solid var(--border);
-            padding-top: 8px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            outline: none;
-            color: var(--cyan);
-            font-family: monospace;
-            font-size: 14px;
-        }
-
-        /* ====== CENTER ARC REACTOR ====== */
-        #reactor-container {
-            position: relative;
-            width: 400px;
-            height: 400px;
+        /* CENTER REACTOR */
+        #center-panel {
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
         }
 
+        #reactor-container {
+            width: 300px;
+            height: 300px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+
+        /* REACTOR ANIMATION AND PULSE */
         #reactor-img {
-            width: 320px;
-            height: 320px;
+            width: 100%;
+            height: 100%;
             object-fit: contain;
+            /* Rotate continuously, scale based on --pulse variable */
+            transform: scale(var(--pulse, 1));
             animation: rotate 20s linear infinite;
-        }
-
-        .center-title {
-            font-size: 18px;
-            letter-spacing: 4px;
-            margin-bottom: 20px;
-            color: var(--cyan);
-            white-space: nowrap;
         }
 
         @keyframes rotate {
@@ -173,302 +138,315 @@
             }
         }
 
-        .overlay-state {
+        #state-display {
             margin-top: 20px;
-            /* Below reactor */
-            letter-spacing: 6px;
-            font-size: 16px;
+            font-size: 18px;
+            letter-spacing: 4px;
             font-weight: bold;
-            opacity: 0.9;
-            text-align: center;
             color: var(--amber);
         }
 
-        /* scanline */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(to bottom,
-                    rgba(255, 255, 255, 0.02) 0px,
-                    rgba(255, 255, 255, 0.02) 1px,
-                    transparent 2px,
-                    transparent 4px);
-            pointer-events: none;
+        /* TERMINAL */
+        #terminal-panel {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
         }
 
-        .glow-text {
-            text-shadow: 0 0 10px var(--cyan);
+        #log-container {
+            flex: 1;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px;
+            color: #ccc;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+        }
+
+        .log-time {
+            color: var(--amber);
+            margin-right: 8px;
+        }
+
+        .log-role {
+            color: var(--blue);
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        #input-area {
+            border-top: 1px solid var(--border);
+            padding-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: var(--cyan);
+            font-family: monospace;
+            width: 100%;
+            outline: none;
         }
     </style>
 </head>
 
 <body>
-    <div id="root">
-        <header>
-            <div class="title glow-text">J.A.R.V.I.S • NEURAL COMMAND INTERFACE</div>
-            <div class="datetime-display">
-                <div id="date"></div>
-                <div id="time"></div>
-            </div>
-        </header>
 
-        <!-- LEFT: SYSTEM -->
-        <div class="panel" id="system">
-            <h3 class="glow-text">SYSTEM TELEMETRY</h3>
-            <div class="metric">CPU <span id="cpu-val">0%</span>
-                <div class="bar"><span id="cpu"></span></div>
+    <!-- HEADER -->
+    <header>
+        <div style="display: flex; align-items: center;">
+            <div class="glow-text">J.A.R.V.I.S SYSTEM</div>
+            <div id="bridge-status">OFFLINE</div>
+        </div>
+        <div style="text-align: right;">
+            <div id="date">--.--.----</div>
+            <div id="time">--:-- --</div>
+        </div>
+    </header>
+
+    <!-- SYSTEM STATS -->
+    <div class="panel">
+        <h3 class="glow-text">SYSTEM STATUS</h3>
+
+        <div class="metric-row">
+            <div class="label-row"><span>CPU</span><span id="cpu-val">--%</span></div>
+            <div class="bar-bg">
+                <div class="bar-fill" id="cpu-bar"></div>
             </div>
-            <div class="metric">RAM <span id="ram-val">0%</span>
-                <div class="bar"><span id="ram"></span></div>
+        </div>
+        <div class="metric-row">
+            <div class="label-row"><span>RAM</span><span id="ram-val">--%</span></div>
+            <div class="bar-bg">
+                <div class="bar-fill" id="ram-bar"></div>
             </div>
-            <div class="metric">GPU <span id="gpu-val">0%</span>
-                <div class="bar"><span id="gpu"></span></div>
+        </div>
+        <div class="metric-row">
+            <div class="label-row"><span>GPU</span><span id="gpu-val">--%</span></div>
+            <div class="bar-bg">
+                <div class="bar-fill" id="gpu-bar"></div>
             </div>
-            <div class="metric">NETWORK: <span id="net">—</span></div>
         </div>
 
-        <!-- CENTER: AI CORE -->
-        <div class="panel" id="center">
-            <div id="reactor-container">
-                <img id="reactor-img" src="assets/glow.png" alt="Arc Reactor"
-                    onerror="this.src=''; this.alt='[REACTOR ONLINE]'; this.style.border='2px solid var(--cyan)'; this.style.borderRadius='50%';">
-            </div>
-            <div class="overlay-state" id="overlayState">IDLE</div>
-        </div>
-
-        <!-- RIGHT: CONTEXT -->
-        <div class="panel" id="context">
-            <h3 class="glow-text">AI CONTEXT</h3>
-            <div class="metric">Wake Word: <b>Jarvis</b></div>
-            <div class="metric">Mic Level: <span id="mic">0%</span>
-                <div class="bar" style="height: 12px;"><span id="mic-bar"></span></div>
-            </div>
-            <div class="metric">Intent: <span id="intent">—</span></div>
-            <div class="metric">Latency: <span id="latency">—</span></div>
-        </div>
-
-        <!-- TERMINAL -->
-        <div class="panel" id="terminal">
-            <div class="title glow-text">COMMUNICATION LOG</div>
-            <div id="log"></div>
-            <div id="input">
-                <span style="color: var(--cyan); font-weight: bold;">&gt;</span>
-                <input id="cmd" placeholder="Speak or type command…" autocomplete="off" />
-            </div>
+        <div style="margin-top:20px; font-size: 14px;">
+            <div>NETWORK: <span id="net-val">--</span></div>
+            <div>SPEED: <span id="speed-val">--</span></div>
         </div>
     </div>
 
-    <!-- SCRIPT SECTION -->
-    <script src="qwebchannel.js"></script>
+    <!-- CENTER REACTOR -->
+    <div class="panel" id="center-panel">
+        <div id="reactor-container">
+            <img id="reactor-img" src="assets/glow.png" alt="Reactor"
+                onerror="this.style.display='none'; this.parentElement.style.border='2px solid var(--cyan)'; this.parentElement.style.borderRadius='50%';">
+        </div>
+        <div id="state-display">INITIALIZING...</div>
+    </div>
+
+    <!-- CONTEXT -->
+    <div class="panel">
+        <h3 class="glow-text">CONTEXT</h3>
+        <div class="metric-row">
+            <div class="label-row"><span>MIC OUTPUT</span><span id="mic-val">0%</span></div>
+            <div class="bar-bg">
+                <div class="bar-fill" id="mic-bar"></div>
+            </div>
+        </div>
+        <div style="margin-top: 15px;">
+            <div style="font-size:12px; color:#888;">DETECTED INTENT</div>
+            <div id="intent-val" style="font-size:16px; color:var(--cyan);">--</div>
+        </div>
+        <div style="margin-top: 15px;">
+            <div style="font-size:12px; color:#888;">LATENCY</div>
+            <div id="latency-val" style="font-size:16px;">-- ms</div>
+        </div>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="panel" id="terminal-panel">
+        <div class="glow-text">NEURAL LOG</div>
+        <div id="log-container"></div>
+        <div id="input-area">
+            <span>&gt;</span>
+            <input id="cmd-input" placeholder="Execute command..." autocomplete="off">
+        </div>
+    </div>
+
+    <!-- Custom WebSocket Implementation -->
     <script>
-        // DOM Elements
-        const overlayStateTxt = document.getElementById('overlayState');
-        const cpuBar = document.getElementById('cpu');
-        const ramBar = document.getElementById('ram');
-        const gpuBar = document.getElementById('gpu');
-        const cpuVal = document.getElementById('cpu-val');
-        const ramVal = document.getElementById('ram-val');
-        const gpuVal = document.getElementById('gpu-val');
-        const netTxt = document.getElementById('net');
-        const micTxt = document.getElementById('mic');
-        const micBar = document.getElementById('mic-bar');
-        const latencyTxt = document.getElementById('latency');
-        const log = document.getElementById('log');
-        const cmdInput = document.getElementById('cmd');
-        const reactorImg = document.getElementById('reactor-img');
-
-        // Terminal Logging
-        function write(role, text) {
-            if (!text) return;
-            const div = document.createElement('div');
-            div.style.marginBottom = '4px';
-            const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            div.innerHTML = `<span style="color: var(--amber);">[${timestamp}]</span> <span style="color: var(--blue); font-weight: bold;">${role}:</span> ${text}`;
-            log.appendChild(div);
-            log.scrollTop = log.scrollHeight;
+        // --- 1. UTILS ---
+        function getEl(id) { return document.getElementById(id); }
+        function setText(id, txt) { const e = getEl(id); if (e) e.textContent = txt; }
+        function setWidth(id, pct) { const e = getEl(id); if (e) e.style.width = pct + '%'; }
+        function log(role, msg) {
+            if (!msg) return;
+            const c = getEl('log-container');
+            const d = document.createElement('div');
+            d.className = 'log-entry';
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            d.innerHTML = `<span class="log-time">[${time}]</span><span class="log-role">${role}:</span> ${msg}`;
+            c.appendChild(d);
+            c.scrollTop = c.scrollHeight;
         }
 
-        // Input Handling
-        if (cmdInput) {
-            cmdInput.addEventListener('keydown', e => {
-                if (e.key === 'Enter' && cmdInput.value.trim()) {
-                    const text = cmdInput.value;
-                    write('USER', text);
-                    if (window.bridge && window.bridge.processTextCommand) {
-                        window.bridge.processTextCommand(text, function (result) {
-                            console.log("Command result:", result);
-                        });
-                    }
-                    cmdInput.value = '';
-                }
-            });
-        }
-
-        // Date and Time
-        function updateDateTime() {
+        // --- 2. CLOCK ---
+        setInterval(() => {
             const now = new Date();
-            const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '.');
-            const timeStr = now.toLocaleTimeString('en-US', { hour12: true });
-            const dateEl = document.getElementById('date');
-            const timeEl = document.getElementById('time');
-            if (dateEl) dateEl.textContent = dateStr;
-            if (timeEl) timeEl.textContent = timeStr;
-        }
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
+            setText('date', now.toLocaleDateString().replace(/\//g, '.'));
+            setText('time', now.toLocaleTimeString());
+        }, 1000);
 
-        // === BRIDGE & POLLING LOGIC ===
+        // --- 3. WEBSOCKET CLIENT ---
+        let socket = null;
+        let retryCount = 0;
 
-        function initWebChannel() {
-            console.log("HUD: Initializing WebChannel...");
+        function connectWS() {
+            log("SYSTEM", "Connecting to Neural Core...");
+            // Connect to the WebSocket server provided by Python
+            socket = new WebSocket("ws://localhost:8765");
 
-            if (typeof QWebChannel === 'undefined') {
-                console.warn("QWebChannel undefined. Local testing or not loaded?");
-                // Try retrying if Qt is present but script not loaded (unlikely in this context)
-                if (typeof qt !== 'undefined') setTimeout(initWebChannel, 500);
-                return;
-            }
+            socket.onopen = () => {
+                log("SYSTEM", "CORE CONNECTED.");
+                const statusEl = getEl('bridge-status');
+                statusEl.textContent = "ONLINE";
+                statusEl.classList.add('connected');
+                retryCount = 0;
+            };
 
-            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+            socket.onmessage = (event) => {
                 try {
-                    new QWebChannel(qt.webChannelTransport, function (channel) {
-                        window.bridge = channel.objects.bridge;
-                        if (!window.bridge) {
-                            console.error("HUD: Bridge object missing!");
-                            return;
-                        }
-
-                        console.log("HUD: Bridge connected.");
-                        write('SYSTEM', 'Neural Interface Online.');
-
-                        // --- CONNECT SIGNALS ---
-
-                        // 1. System Stats (Expects JSON String)
-                        if (window.bridge.systemStatsChanged) {
-                            window.bridge.systemStatsChanged.connect(function (jsonStr) {
-                                try {
-                                    const s = JSON.parse(jsonStr);
-                                    if (s.cpu !== undefined) {
-                                        if (cpuBar) cpuBar.style.width = s.cpu + '%';
-                                        if (cpuVal) cpuVal.textContent = s.cpu.toFixed(1) + '%';
-                                    }
-                                    if (s.ram !== undefined) {
-                                        if (ramBar) ramBar.style.width = s.ram + '%';
-                                        if (ramVal) ramVal.textContent = s.ram.toFixed(1) + '%';
-                                    }
-                                    if (s.gpu !== undefined) {
-                                        if (gpuBar) gpuBar.style.width = s.gpu + '%';
-                                        if (gpuVal) gpuVal.textContent = s.gpu.toFixed(1) + '%';
-                                    }
-                                    if (s.network && netTxt) netTxt.textContent = s.network;
-                                } catch (e) { console.error("Stats parse error:", e); }
-                            });
-                        }
-
-                        // 2. State Changed (String)
-                        if (window.bridge.stateChanged) {
-                            window.bridge.stateChanged.connect(function (state) {
-                                updateStateUI(state);
-                            });
-                        }
-
-                        // 3. Audio Data (Float)
-                        if (window.bridge.audioDataChanged) {
-                            window.bridge.audioDataChanged.connect(function (level) {
-                                updateAudioUI(level);
-                            });
-                        }
-
-                        // 4. Chat Message (String, String)
-                        if (window.bridge.chatMessageReceived) {
-                            window.bridge.chatMessageReceived.connect(function (sender, msg) {
-                                write(sender, msg);
-                            });
-                        }
-
-                        // Start Polling Fallback
-                        startPolling();
-                    });
+                    const msg = JSON.parse(event.data);
+                    handleMessage(msg);
                 } catch (e) {
-                    console.error("WebChannel init failed:", e);
+                    console.error("WS Parse Error", e);
                 }
-            } else {
-                // Retry for race conditions
-                setTimeout(initWebChannel, 500);
-            }
-        }
+            };
 
-        // --- POLLING MECHANISM ---
-        function startPolling() {
-            if (!window.bridge) return;
+            socket.onclose = () => {
+                const statusEl = getEl('bridge-status');
+                statusEl.textContent = "OFFLINE";
+                statusEl.classList.remove('connected');
 
-            // Stats Polling (500ms)
-            setInterval(() => {
-                if (window.bridge.getStats) {
-                    window.bridge.getStats(function (jsonStr) { // async callback for QWebChannel
-                        try {
-                            const s = JSON.parse(jsonStr);
-                            if (s.cpu !== undefined) {
-                                if (cpuBar) cpuBar.style.width = s.cpu + '%';
-                                if (cpuVal) cpuVal.textContent = s.cpu.toFixed(1) + '%';
-                            }
-                            // ... other stats implicitly handled or can be added here
-                        } catch (e) { }
-                    });
-                }
-            }, 500);
-
-            // State Polling (100ms)
-            setInterval(() => {
-                if (window.bridge.getState) {
-                    window.bridge.getState(function (state) {
-                        updateStateUI(state);
-                    });
-                }
-            }, 100);
-
-            // Audio Polling (50ms)
-            setInterval(() => {
-                if (window.bridge.getAudioLevel) {
-                    window.bridge.getAudioLevel(function (lvl) {
-                        updateAudioUI(lvl);
-                    });
-                }
-            }, 50);
-        }
-
-        // --- UI UPDATERS ---
-        function updateStateUI(state) {
-            if (!state) return;
-            const s = state.toUpperCase();
-            if (overlayStateTxt) overlayStateTxt.textContent = s;
-
-            if (reactorImg) {
-                if (s === 'LISTENING') {
-                    reactorImg.style.animationDuration = '5s';
-                    if (overlayStateTxt) overlayStateTxt.style.color = '#00ff00';
-                } else if (s === 'THINKING') {
-                    reactorImg.style.animationDuration = '2s';
-                    if (overlayStateTxt) overlayStateTxt.style.color = '#00eaff';
-                } else if (s === 'SPEAKING') {
-                    reactorImg.style.animationDuration = '3s';
-                    if (overlayStateTxt) overlayStateTxt.style.color = '#ffcc66';
+                // Retry connection
+                if (retryCount < 5) {
+                    retryCount++;
+                    setTimeout(connectWS, 2000);
                 } else {
-                    reactorImg.style.animationDuration = '20s';
-                    if (overlayStateTxt) overlayStateTxt.style.color = 'var(--amber)';
+                    log("SYSTEM", "CORE DISCONNECTED (Max retries).");
                 }
+            };
+
+            socket.onerror = (e) => {
+                console.error("WS Error", e);
+            };
+        }
+
+        function handleMessage(msg) {
+            switch (msg.type) {
+                case 'stats':
+                    updateStats(msg.data);
+                    break;
+                case 'audio':
+                    updateAudio(msg.data);
+                    break;
+                case 'state':
+                    updateState(msg.data);
+                    break;
+                case 'chat':
+                    log(msg.sender, msg.message);
+                    break;
+                case 'intent':
+                    setText('intent-val', `${msg.intent} (${(msg.confidence * 100).toFixed(0)}%)`);
+                    break;
+                case 'latency':
+                    setText('latency-val', msg.data + ' ms');
+                    break;
+                default:
+                    console.log("Unknown msg type:", msg.type);
             }
         }
 
-        function updateAudioUI(level) {
-            if (typeof level !== 'number') return;
-            if (micTxt) micTxt.textContent = level.toFixed(0) + '%';
-            if (micBar) micBar.style.width = level + '%';
+        function updateStats(s) {
+            if (s.cpu !== undefined) {
+                setText('cpu-val', s.cpu.toFixed(1) + '%');
+                setWidth('cpu-bar', s.cpu);
+            }
+            if (s.ram !== undefined) {
+                setText('ram-val', s.ram.toFixed(1) + '%');
+                setWidth('ram-bar', s.ram);
+            }
+            if (s.gpu !== undefined) {
+                setText('gpu-val', s.gpu + '%');
+                setWidth('gpu-bar', s.gpu);
+            }
+            if (s.network) setText('net-val', s.network);
+            if (s.internetSpeed) setText('speed-val', s.internetSpeed + ' Mbps');
         }
 
-        // Initialize
-        document.addEventListener("DOMContentLoaded", initWebChannel);
+        function updateAudio(val) {
+            // Python sends 0.0-100.0 or higher
+            let pct = val * 100;
+            // If val is already 0-100 (which it seems to be from logs), just use it
+            if (val > 1.0) pct = val;
+            if (pct > 100) pct = 100;
+
+            setText('mic-val', pct.toFixed(0) + '%');
+            setWidth('mic-bar', pct);
+
+            const reactor = getEl('reactor-img');
+            if (reactor) {
+                const scale = 1 + (pct / 200);
+                reactor.style.setProperty('--pulse', scale);
+            }
+        }
+
+        function updateState(state) {
+            setText('state-display', state.toUpperCase());
+            const s = state.toLowerCase();
+            const r = getEl('reactor-img');
+            const t = getEl('state-display');
+
+            if (s.includes('listen')) {
+                t.style.color = '#00ffaa';
+                if (r) r.style.filter = 'hue-rotate(90deg) brightness(1.2)';
+            } else if (s.includes('think')) {
+                t.style.color = '#ffffff';
+                if (r) r.style.filter = 'grayscale(100%) brightness(2)';
+            } else if (s.includes('speak')) {
+                t.style.color = 'var(--cyan)';
+                if (r) r.style.filter = 'none';
+            } else {
+                t.style.color = 'var(--amber)';
+                if (r) r.style.filter = 'sepia(100%)';
+            }
+        }
+
+        // Init
+        document.addEventListener("DOMContentLoaded", () => {
+            connectWS();
+        });
+
+        // --- 4. INPUT ---
+        getEl('cmd-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const val = e.target.value;
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        type: 'command',
+                        content: val
+                    }));
+                    log("USER", val);
+                } else {
+                    log("SYSTEM", "Core offline. Command failed.");
+                }
+                e.target.value = '';
+            }
+        });
 
     </script>
 </body>

@@ -45,12 +45,8 @@
     },
     "working_memory": [
         {
-            "entity": "Hey",
-            "timestamp": "2026-01-21T22:48:50.752281"
-        },
-        {
-            "entity": "John",
-            "timestamp": "2026-01-21T22:48:50.752281"
+            "entity": "It",
+            "timestamp": "2026-01-22T17:02:12.259702"
         }
     ],
     "episodic_memory": [
@@ -69,6 +65,12 @@
         {
             "date": "2026-01-21T22:52:14.403583",
             "summary": "Interaction highlights: User: Hey, John, can you hear me?\nAI: Yes, Shashi. I can hear you.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-01-22T17:10:38.542661",
+            "summary": "Interaction highlights: User: It's our best.\nAI: Shashi, it’s a good one. It’s currently unavailable in my memory context.\nMood: positive",
             "mood": "positive",
             "importance": 1.0
         }
@@ -189,12 +191,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-01-21T22:48:44.372280"
+        "last_analysis": "2026-01-22T17:02:04.627369"
     },
     "conversation_patterns": {
         "other": 42,
         "question": 9,
-        "statement": 19
+        "statement": 20
     },
     "relationships": {
         "John": {
@@ -232,17 +234,17 @@
         }
     },
     "interests": [
-        "technology",
-        "ai",
+        "it",
         "it.",
+        "memory.json,",
+        "pizza?",
+        "pizza",
+        "ai",
+        "programming",
+        "technology",
         "to",
         "pizza and italian food",
-        "it",
-        "pizza?",
-        "to know if you could see it",
-        "memory.json,",
-        "pizza",
-        "programming"
+        "to know if you could see it"
     ],
     "favorites": {
         "music": [
