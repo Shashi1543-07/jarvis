@@ -1,4 +1,4 @@
-/* STARK TECH HUD THEME */
+/* IRON MAN JARVIS HUD THEME */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 body {
@@ -8,6 +8,10 @@ body {
     color: #00E5FF;
     font-family: 'Share Tech Mono', monospace;
     perspective: 1000px;
+    background-image:
+        radial-gradient(circle at 10% 20%, rgba(0, 20, 40, 0.3) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(0, 40, 80, 0.3) 0%, transparent 20%),
+        linear-gradient(to bottom, #000000, #020205);
 }
 
 #hud-container {
@@ -23,7 +27,63 @@ body {
     gap: 10px;
     padding: 20px;
     box-sizing: border-box;
-    background: radial-gradient(circle at center, #0a151f 0%, #000000 100%);
+    background: radial-gradient(circle at center, rgba(10, 21, 31, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
+    position: relative;
+}
+
+/* ARMOR ELEMENTS */
+.armor-plating {
+    position: absolute;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.armor-top-left {
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 200px;
+    border-right: 2px solid rgba(0, 229, 255, 0.3);
+    border-bottom: 2px solid rgba(0, 229, 255, 0.3);
+    background:
+        linear-gradient(45deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%),
+        linear-gradient(-45deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%);
+}
+
+.armor-top-right {
+    top: 0;
+    right: 0;
+    width: 200px;
+    height: 200px;
+    border-left: 2px solid rgba(0, 229, 255, 0.3);
+    border-bottom: 2px solid rgba(0, 229, 255, 0.3);
+    background:
+        linear-gradient(135deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%),
+        linear-gradient(45deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%);
+}
+
+.armor-bottom-left {
+    bottom: 0;
+    left: 0;
+    width: 200px;
+    height: 200px;
+    border-right: 2px solid rgba(0, 229, 255, 0.3);
+    border-top: 2px solid rgba(0, 229, 255, 0.3);
+    background:
+        linear-gradient(-45deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%),
+        linear-gradient(45deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%);
+}
+
+.armor-bottom-right {
+    bottom: 0;
+    right: 0;
+    width: 200px;
+    height: 200px;
+    border-left: 2px solid rgba(0, 229, 255, 0.3);
+    border-top: 2px solid rgba(0, 229, 255, 0.3);
+    background:
+        linear-gradient(-135deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%),
+        linear-gradient(135deg, transparent 70%, rgba(0, 229, 255, 0.05) 100%);
 }
 
 /* WIDGET STYLES */
@@ -35,6 +95,7 @@ body {
     position: relative;
     backdrop-filter: blur(2px);
     transition: all 0.3s ease;
+    border-radius: 4px;
 }
 
 .widget::before {
@@ -45,7 +106,7 @@ body {
     right: -1px;
     bottom: -1px;
     border: 1px solid transparent;
-    border-radius: 2px;
+    border-radius: 4px;
     background:
         linear-gradient(to right, #00E5FF 10px, transparent 10px) 0 0,
         linear-gradient(to bottom, #00E5FF 10px, transparent 10px) 0 0,
@@ -68,6 +129,16 @@ body {
     margin-bottom: 10px;
     text-shadow: 0 0 8px #00E5FF;
     letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.widget-title::before {
+    content: '▶';
+    color: #00E5FF;
+    font-size: 0.8em;
+    animation: pulse 2s infinite;
 }
 
 /* SPECIFIC AREAS */
@@ -77,6 +148,113 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    perspective: 1200px;
+}
+
+.reactor-wrapper {
+    width: 450px;
+    height: 450px;
+    position: relative;
+    transform-style: preserve-3d;
+    filter: drop-shadow(0 0 25px rgba(0, 229, 255, 0.5));
+}
+
+.reactor-ring, .reactor-core {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.reactor-ring img, .reactor-core img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Rotate the entire arc reactor as one unit */
+.reactor-main {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    transform-origin: 50% 50%; /* Explicitly set to center */
+    /* Animation will be controlled by GSAP */
+}
+
+.reactor-main img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    transform-origin: 50% 50%; /* Ensure image rotates around its center */
+}
+
+
+.reactor-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) translateZ(35px);
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, #ffffff 0%, #00E5FF 60%, transparent 100%);
+    border-radius: 50%;
+    filter: blur(15px);
+    opacity: 0.5;
+    mix-blend-mode: screen;
+    animation: reactorGlow 3s infinite ease-in-out;
+    z-index: 5;
+    /* Ensure the glow stays centered regardless of reactor rotation */
+    will-change: transform;
+}
+
+
+@keyframes reactorGlow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(0, 229, 255, 0.6), 0 0 40px rgba(0, 229, 255, 0.4);
+        opacity: 0.7;
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(0, 229, 255, 0.8), 0 0 60px rgba(0, 229, 255, 0.6);
+        opacity: 0.9;
+    }
+}
+
+
+@keyframes glowPulseRealistic {
+    from {
+        opacity: 0.3;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    to {
+        opacity: 0.7;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+}
+
+/* State-based modifiers (toggled via reactor.js) */
+.listening .reactor-main {
+    filter: hue-rotate(120deg) brightness(1.2);
+}
+
+.thinking .reactor-main {
+    filter: saturate(0) brightness(1.6);
+}
+
+.speaking .reactor-main {
+    filter: brightness(1.4);
+}
+
+.warning .reactor-main,
+.critical .reactor-main {
+    filter: brightness(1.8) hue-rotate(30deg);
 }
 
 #header-bar {
@@ -86,6 +264,7 @@ body {
     align-items: center;
     border-bottom: 2px solid rgba(0, 229, 255, 0.2);
     padding: 0 20px;
+    position: relative;
 }
 
 #left-panel {
@@ -111,6 +290,8 @@ body {
     letter-spacing: 5px;
     z-index: 1000;
     pointer-events: none;
+    text-transform: uppercase;
+    font-weight: bold;
 }
 
 /* GLOW & ANIMATION CLASSES */
@@ -157,6 +338,24 @@ body {
     }
 }
 
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.6;
+    }
+}
+
 /* DATA BARS */
 .bar-container {
     width: 100%;
@@ -164,14 +363,34 @@ body {
     background: rgba(0, 229, 255, 0.1);
     margin-top: 5px;
     position: relative;
+    border-radius: 5px;
+    overflow: hidden;
 }
 
 .bar-fill {
     height: 100%;
-    background: #00E5FF;
+    background: linear-gradient(90deg, #00E5FF, #00FFFF);
     box-shadow: 0 0 10px #00E5FF;
     width: 0%;
     transition: width 0.5s ease;
+    border-radius: 5px;
+}
+
+/* SYSTEM METRICS */
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0;
+    font-size: 0.9em;
+}
+
+.metric-label {
+    color: rgba(0, 229, 255, 0.7);
+}
+
+.metric-value {
+    font-weight: bold;
+    color: #00E5FF;
 }
 
 /* CHAT PANEL */
@@ -181,6 +400,9 @@ body {
     font-size: 14px;
     margin-bottom: 10px;
     padding-right: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 10px;
 }
 
 #chat-history::-webkit-scrollbar {
@@ -208,6 +430,12 @@ body {
     font-size: 16px;
     width: 100%;
     outline: none;
+    padding: 5px;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+#command-input:focus {
+    border-bottom: 1px solid #00E5FF;
 }
 
 #command-input::placeholder {
@@ -217,9 +445,80 @@ body {
 .msg-user {
     color: #00ffaa;
     margin-bottom: 5px;
+    padding: 2px 0;
 }
 
 .msg-jarvis {
     color: #00E5FF;
     margin-bottom: 5px;
+    padding: 2px 0;
+}
+
+/* DATE/TIME DISPLAY */
+.datetime-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 0;
+}
+
+.date-display {
+    font-size: 1.2em;
+    margin-bottom: 5px;
+}
+
+.time-display {
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+.day-year-display {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+/* INITIALIZATION TEXT */
+.initialization-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5em;
+    text-align: center;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1s ease;
+}
+
+.initialization-text.active {
+    opacity: 1;
+}
+
+/* ARMOR STATUS INDICATORS */
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    background-color: #00E5FF;
+    box-shadow: 0 0 5px #00E5FF;
+}
+
+.status-indicator.warning {
+    background-color: #FFA500;
+    box-shadow: 0 0 5px #FFA500;
+}
+
+.status-indicator.critical {
+    background-color: #FF0000;
+    box-shadow: 0 0 5px #FF0000;
+}
+
+.status-indicator.offline {
+    background-color: #666;
+    box-shadow: 0 0 5px #666;
 }

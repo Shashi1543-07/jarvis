@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>JARVIS • Neo HUD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        :root {
+            --cyan: #00eaff;
+            --blue: #1aa3ff;
+            --amber: #ffcc66;
+            --bg: #05080d;
+            --glass: rgba(20, 40, 60, 0.35);
+            --border: rgba(0, 234, 255, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #08131f, var(--bg));
+            color: var(--cyan);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        /* ====== LAYOUT ====== */
+        #root {
+            display: grid;
+            grid-template-columns: 320px 1fr 360px;
+            grid-template-rows: 80px 1fr 220px;
+            height: 100vh;
+            gap: 12px;
+            padding: 12px;
+        }
+
+        header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+        }
+
+        .datetime-display {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            font-size: 14px;
+        }
+
+        .panel {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            padding: 14px;
+            overflow: hidden;
+        }
+
+        #center {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            /* Center title, reactor, state vertically */
+            justify-content: center;
+            align-items: center;
+        }
+
+        #terminal {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ====== TEXT ====== */
+        .title {
+            letter-spacing: 3px;
+            font-weight: 600;
+        }
+
+        .status {
+            color: var(--amber);
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .metric {
+            margin-bottom: 10px;
+        }
+
+        .bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            position: relative;
+            margin-top: 4px;
+        }
+
+        .bar>span {
+            position: absolute;
+            inset: 0;
+            width: 0%;
+            background: linear-gradient(90deg, var(--cyan), var(--blue));
+            transition: width 0.4s ease;
+        }
+
+        /* ====== TERMINAL ====== */
+        #log {
+            flex: 1;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px;
+        }
+
+        #input {
+            border-top: 1px solid var(--border);
+            padding-top: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--cyan);
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        /* ====== CENTER ARC REACTOR ====== */
+        #reactor-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #reactor-img {
+            width: 320px;
+            height: 320px;
+            object-fit: contain;
+            animation: rotate 20s linear infinite;
+        }
+
+        .center-title {
+            font-size: 18px;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+            color: var(--cyan);
+            white-space: nowrap;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .overlay-state {
+            margin-top: 20px;
+            /* Below reactor */
+            letter-spacing: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            opacity: 0.9;
+            text-align: center;
+            color: var(--amber);
+        }
+
+        /* scanline */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(to bottom,
+                    rgba(255, 255, 255, 0.02) 0px,
+                    rgba(255, 255, 255, 0.02) 1px,
+                    transparent 2px,
+                    transparent 4px);
+            pointer-events: none;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px var(--cyan);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root">
+        <header>
+            <div class="title glow-text">J.A.R.V.I.S • NEURAL COMMAND INTERFACE</div>
+            <div class="datetime-display">
+                <div id="date"></div>
+                <div id="time"></div>
+            </div>
+        </header>
+
+        <!-- LEFT: SYSTEM -->
+        <div class="panel" id="system">
+            <h3 class="glow-text">SYSTEM TELEMETRY</h3>
+            <div class="metric">CPU <span id="cpu-val">0%</span>
+                <div class="bar"><span id="cpu"></span></div>
+            </div>
+            <div class="metric">RAM <span id="ram-val">0%</span>
+                <div class="bar"><span id="ram"></span></div>
+            </div>
+            <div class="metric">GPU <span id="gpu-val">0%</span>
+                <div class="bar"><span id="gpu"></span></div>
+            </div>
+            <div class="metric">NETWORK: <span id="net">—</span></div>
+        </div>
+
+        <!-- CENTER: AI CORE -->
+        <div class="panel" id="center">
+            <div id="reactor-container">
+                <img id="reactor-img" src="assets/glow.png" alt="Arc Reactor"
+                    onerror="this.src=''; this.alt='[REACTOR ONLINE]'; this.style.border='2px solid var(--cyan)'; this.style.borderRadius='50%';">
+            </div>
+            <div class="overlay-state" id="overlayState">IDLE</div>
+        </div>
+
+        <!-- RIGHT: CONTEXT -->
+        <div class="panel" id="context">
+            <h3 class="glow-text">AI CONTEXT</h3>
+            <div class="metric">Wake Word: <b>Jarvis</b></div>
+            <div class="metric">Mic Level: <span id="mic">0%</span>
+                <div class="bar" style="height: 12px;"><span id="mic-bar"></span></div>
+            </div>
+            <div class="metric">Intent: <span id="intent">—</span></div>
+            <div class="metric">Latency: <span id="latency">—</span></div>
+        </div>
+
+        <!-- TERMINAL -->
+        <div class="panel" id="terminal">
+            <div class="title glow-text">COMMUNICATION LOG</div>
+            <div id="log"></div>
+            <div id="input">
+                <span style="color: var(--cyan); font-weight: bold;">&gt;</span>
+                <input id="cmd" placeholder="Speak or type command…" autocomplete="off" />
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT SECTION -->
+    <script src="qwebchannel.js"></script>
+    <script>
+        // DOM Elements
+        const overlayStateTxt = document.getElementById('overlayState');
+        const cpuBar = document.getElementById('cpu');
+        const ramBar = document.getElementById('ram');
+        const gpuBar = document.getElementById('gpu');
+        const cpuVal = document.getElementById('cpu-val');
+        const ramVal = document.getElementById('ram-val');
+        const gpuVal = document.getElementById('gpu-val');
+        const netTxt = document.getElementById('net');
+        const micTxt = document.getElementById('mic');
+        const micBar = document.getElementById('mic-bar');
+        const latencyTxt = document.getElementById('latency');
+        const log = document.getElementById('log');
+        const cmdInput = document.getElementById('cmd');
+        const reactorImg = document.getElementById('reactor-img');
+
+        // Terminal Logging
+        function write(role, text) {
+            if (!text) return;
+            const div = document.createElement('div');
+            div.style.marginBottom = '4px';
+            const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            div.innerHTML = `<span style="color: var(--amber);">[${timestamp}]</span> <span style="color: var(--blue); font-weight: bold;">${role}:</span> ${text}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Input Handling
+        if (cmdInput) {
+            cmdInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && cmdInput.value.trim()) {
+                    const text = cmdInput.value;
+                    write('USER', text);
+                    if (window.bridge && window.bridge.processTextCommand) {
+                        window.bridge.processTextCommand(text, function (result) {
+                            console.log("Command result:", result);
+                        });
+                    }
+                    cmdInput.value = '';
+                }
+            });
+        }
+
+        // Date and Time
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '.');
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: true });
+            const dateEl = document.getElementById('date');
+            const timeEl = document.getElementById('time');
+            if (dateEl) dateEl.textContent = dateStr;
+            if (timeEl) timeEl.textContent = timeStr;
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+
+        // === BRIDGE & POLLING LOGIC ===
+
+        function initWebChannel() {
+            console.log("HUD: Initializing WebChannel...");
+
+            if (typeof QWebChannel === 'undefined') {
+                console.warn("QWebChannel undefined. Local testing or not loaded?");
+                // Try retrying if Qt is present but script not loaded (unlikely in this context)
+                if (typeof qt !== 'undefined') setTimeout(initWebChannel, 500);
+                return;
+            }
+
+            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                try {
+                    new QWebChannel(qt.webChannelTransport, function (channel) {
+                        window.bridge = channel.objects.bridge;
+                        if (!window.bridge) {
+                            console.error("HUD: Bridge object missing!");
+                            return;
+                        }
+
+                        console.log("HUD: Bridge connected.");
+                        write('SYSTEM', 'Neural Interface Online.');
+
+                        // --- CONNECT SIGNALS ---
+
+                        // 1. System Stats (Expects JSON String)
+                        if (window.bridge.systemStatsChanged) {
+                            window.bridge.systemStatsChanged.connect(function (jsonStr) {
+                                try {
+                                    const s = JSON.parse(jsonStr);
+                                    if (s.cpu !== undefined) {
+                                        if (cpuBar) cpuBar.style.width = s.cpu + '%';
+                                        if (cpuVal) cpuVal.textContent = s.cpu.toFixed(1) + '%';
+                                    }
+                                    if (s.ram !== undefined) {
+                                        if (ramBar) ramBar.style.width = s.ram + '%';
+                                        if (ramVal) ramVal.textContent = s.ram.toFixed(1) + '%';
+                                    }
+                                    if (s.gpu !== undefined) {
+                                        if (gpuBar) gpuBar.style.width = s.gpu + '%';
+                                        if (gpuVal) gpuVal.textContent = s.gpu.toFixed(1) + '%';
+                                    }
+                                    if (s.network && netTxt) netTxt.textContent = s.network;
+                                } catch (e) { console.error("Stats parse error:", e); }
+                            });
+                        }
+
+                        // 2. State Changed (String)
+                        if (window.bridge.stateChanged) {
+                            window.bridge.stateChanged.connect(function (state) {
+                                updateStateUI(state);
+                            });
+                        }
+
+                        // 3. Audio Data (Float)
+                        if (window.bridge.audioDataChanged) {
+                            window.bridge.audioDataChanged.connect(function (level) {
+                                updateAudioUI(level);
+                            });
+                        }
+
+                        // 4. Chat Message (String, String)
+                        if (window.bridge.chatMessageReceived) {
+                            window.bridge.chatMessageReceived.connect(function (sender, msg) {
+                                write(sender, msg);
+                            });
+                        }
+
+                        // Start Polling Fallback
+                        startPolling();
+                    });
+                } catch (e) {
+                    console.error("WebChannel init failed:", e);
+                }
+            } else {
+                // Retry for race conditions
+                setTimeout(initWebChannel, 500);
+            }
+        }
+
+        // --- POLLING MECHANISM ---
+        function startPolling() {
+            if (!window.bridge) return;
+
+            // Stats Polling (500ms)
+            setInterval(() => {
+                if (window.bridge.getStats) {
+                    window.bridge.getStats(function (jsonStr) { // async callback for QWebChannel
+                        try {
+                            const s = JSON.parse(jsonStr);
+                            if (s.cpu !== undefined) {
+                                if (cpuBar) cpuBar.style.width = s.cpu + '%';
+                                if (cpuVal) cpuVal.textContent = s.cpu.toFixed(1) + '%';
+                            }
+                            // ... other stats implicitly handled or can be added here
+                        } catch (e) { }
+                    });
+                }
+            }, 500);
+
+            // State Polling (100ms)
+            setInterval(() => {
+                if (window.bridge.getState) {
+                    window.bridge.getState(function (state) {
+                        updateStateUI(state);
+                    });
+                }
+            }, 100);
+
+            // Audio Polling (50ms)
+            setInterval(() => {
+                if (window.bridge.getAudioLevel) {
+                    window.bridge.getAudioLevel(function (lvl) {
+                        updateAudioUI(lvl);
+                    });
+                }
+            }, 50);
+        }
+
+        // --- UI UPDATERS ---
+        function updateStateUI(state) {
+            if (!state) return;
+            const s = state.toUpperCase();
+            if (overlayStateTxt) overlayStateTxt.textContent = s;
+
+            if (reactorImg) {
+                if (s === 'LISTENING') {
+                    reactorImg.style.animationDuration = '5s';
+                    if (overlayStateTxt) overlayStateTxt.style.color = '#00ff00';
+                } else if (s === 'THINKING') {
+                    reactorImg.style.animationDuration = '2s';
+                    if (overlayStateTxt) overlayStateTxt.style.color = '#00eaff';
+                } else if (s === 'SPEAKING') {
+                    reactorImg.style.animationDuration = '3s';
+                    if (overlayStateTxt) overlayStateTxt.style.color = '#ffcc66';
+                } else {
+                    reactorImg.style.animationDuration = '20s';
+                    if (overlayStateTxt) overlayStateTxt.style.color = 'var(--amber)';
+                }
+            }
+        }
+
+        function updateAudioUI(level) {
+            if (typeof level !== 'number') return;
+            if (micTxt) micTxt.textContent = level.toFixed(0) + '%';
+            if (micBar) micBar.style.width = level + '%';
+        }
+
+        // Initialize
+        document.addEventListener("DOMContentLoaded", initWebChannel);
+
+    </script>
+</body>
+
+</html>

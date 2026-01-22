@@ -43,9 +43,54 @@
             }
         }
     },
-    "working_memory": [],
-    "episodic_memory": [],
-    "semantic_memory": {},
+    "working_memory": [
+        {
+            "entity": "Hey",
+            "timestamp": "2026-01-21T22:48:50.752281"
+        },
+        {
+            "entity": "John",
+            "timestamp": "2026-01-21T22:48:50.752281"
+        }
+    ],
+    "episodic_memory": [
+        {
+            "date": "2026-01-21T21:49:01.702988",
+            "summary": "Interaction highlights: User: He just kept there and he just dropped it.  Okay.  Okay.  Okay.  I shall go.  I am going to go.  I am going to go.  He's always what you can see.  with poison.  See you soon.  Get me a break.  Five, two, three.  Thank you.  Right on now, I'm back.  I'm going to be waiting for you on Sunday.  Once again.  Have a great day.  Bye.  Have a good day.  Bye.  Bye.  Bye.  After that note, on Sunday, we'll come back.\nAI: I can see: 3 persons, 1 bed.\nMood: positive\nUser: I really like it.\nAI: That’s excellent, Sir. I’m pleased to hear.\nMood: positive\nUser: I'm not sure if I'm going to do that.  I'm not sure if I'm going to do that.\nAI: Understood. Proceed with caution.\nMood: positive\nUser: if you did not see this video, you would like to know if you could see it.  Let's try this one.  I'll see you in the next video.  Thank you.\nAI: Scanning the environment, Sir.\nMood: positive\nUser: if you did not see this video, you would like to know if you could see it.  Let's try this one.  I'll see you in the next video.  Thank you.\nAI: Person 1\n\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-01-21T22:13:42.895617",
+            "summary": "Interaction highlights: User: Thank you.\nAI: Always happy to help.\nMood: positive\nUser: You\nAI: Sir, what is it you require?\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-01-21T22:52:14.403583",
+            "summary": "Interaction highlights: User: Hey, John, can you hear me?\nAI: Yes, Shashi. I can hear you.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        }
+    ],
+    "semantic_memory": {
+        "preferences": [
+            {
+                "fact": "likes it",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-01-21T20:52:25.962884"
+            },
+            {
+                "fact": "likes to know if you could see it",
+                "confidence": 0.7,
+                "confirmed": false,
+                "mentions": 2,
+                "last_seen": "2026-01-21T20:53:26.624283"
+            }
+        ]
+    },
     "emotions": [
         {
             "timestamp": "2026-01-19T20:04:41.482061",
@@ -118,6 +163,24 @@
             "emotion": "happy",
             "intensity": 1,
             "context": "like memory.json, secret.json, internet, os, productivity, vision, voice, initial.python,  ac, automatic echo cancellation, enhanced.python, ac.python, audio processor.python, mic.python,  noise suppression, real-time.python, speaker.  the file contains around 85,000 supply and support.  and great, great, great."
+        },
+        {
+            "timestamp": "2026-01-21T20:52:11.303885",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "he just kept there and he just dropped it.  okay.  okay.  okay.  i shall go.  i am going to go.  i am going to go.  he's always what you can see.  with poison.  see you soon.  get me a break.  five, two, three.  thank you.  right on now, i'm back.  i'm going to be waiting for you on sunday.  once again.  have a great day.  bye.  have a good day.  bye.  bye.  bye.  after that note, on sunday, we'll come back."
+        },
+        {
+            "timestamp": "2026-01-21T20:52:22.382359",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "i really like it."
+        },
+        {
+            "timestamp": "2026-01-21T20:53:23.335378",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "if you did not see this video, you would like to know if you could see it.  let's try this one.  i'll see you in the next video.  thank you."
         }
     ],
     "personality_profile": {
@@ -126,12 +189,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-01-20T13:55:24.900953"
+        "last_analysis": "2026-01-21T22:48:44.372280"
     },
     "conversation_patterns": {
-        "other": 40,
+        "other": 42,
         "question": 9,
-        "statement": 8
+        "statement": 19
     },
     "relationships": {
         "John": {
@@ -161,7 +224,7 @@
         },
         "Active during 20:00 with general activities": {
             "frequency": "routine",
-            "last_recorded": "2026-01-19T20:34:04.324247"
+            "last_recorded": "2026-01-21T20:53:23.432703"
         },
         "Active during 22:00 with general activities": {
             "frequency": "routine",
@@ -169,13 +232,17 @@
         }
     },
     "interests": [
-        "memory.json,",
-        "ai",
         "technology",
+        "ai",
+        "it.",
+        "to",
+        "pizza and italian food",
+        "it",
         "pizza?",
+        "to know if you could see it",
+        "memory.json,",
         "pizza",
-        "programming",
-        "pizza and italian food"
+        "programming"
     ],
     "favorites": {
         "music": [

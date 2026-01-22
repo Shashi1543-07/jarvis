@@ -17,6 +17,13 @@ class Router:
         self.memory = EnhancedMemory()
         self.brain = Brain(self.memory) # Share common memory instance
         self.action_map = self._build_action_map()
+        
+        # GUI callback for intent classification
+        self.on_intent_classified = None
+        
+        # Connect brain's classification to router's callback
+        self.brain.on_intent_classified = lambda intent, conf: self.on_intent_classified(intent, conf) if self.on_intent_classified else None
+        
         print("Router initialized with dynamic action dispatch.")
 
         # Register exit handler to clear temporary memory
@@ -55,6 +62,16 @@ class Router:
                 response_data = {"action": "speak", "text": clean_response}
             else:
                 response_data = json.loads(clean_response)
+                
+            # Extract and emit intent if present
+            if "intent" in response_data and self.on_intent_classified:
+                intent_name = response_data["intent"]
+                confidence = response_data.get("confidence", 0.9)  # Default confidence
+                try:
+                    self.on_intent_classified(intent_name, confidence)
+                except Exception as e:
+                    print(f"Router: Failed to emit intent to GUI: {e}")
+                    
         except json.JSONDecodeError:
             print(f"Error parsing JSON: {llm_response}")
             response_data = {"action": "speak", "text": "I'm having trouble thinking clearly."}

@@ -4,85 +4,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS HUD v3.0</title>
+    <title>JARVIS ARMOR SUITE v3.0</title>
     <link rel="stylesheet" href="css/hud.css">
 </head>
 
 <body>
     <div class="scanline"></div>
 
+    <!-- ARMOR PLATING ELEMENTS -->
+    <div class="armor-plating armor-top-left"></div>
+    <div class="armor-plating armor-top-right"></div>
+    <div class="armor-plating armor-bottom-left"></div>
+    <div class="armor-plating armor-bottom-right"></div>
+
     <div id="hud-container">
         <!-- HEADER -->
         <div id="header-bar">
-            <div id="clock">
-                <span id="clock-time" class="glow-text" style="font-size: 2em; margin-right: 10px;">00:00:00</span>
-                <span id="clock-date" style="font-size: 1em; opacity: 0.7;">Jan 01</span>
+            <div id="datetime-container" class="datetime-display">
+                <div id="date-display" class="date-display">MONDAY, JANUARY 21, 2026</div>
+                <div id="time-display" class="time-display">00:00:00</div>
+                <div id="day-year-display" class="day-year-display">DAY 021 | YEAR 2026</div>
             </div>
-            <div id="system-title" class="glow-text">J.A.R.V.I.S. SYSTEM INTERFACE</div>
+            <div id="system-title" class="glow-text">J.A.R.V.I.S. ARMOR SUITE</div>
             <div id="weather-widget">22°C | CLEAR</div>
         </div>
 
         <!-- LEFT PANEL -->
         <div id="left-panel">
             <div class="widget">
-                <div class="widget-title">SYSTEM STATUS</div>
-                <div>CPU LOAD</div>
+                <div class="widget-title">
+                    <span class="status-indicator"></span>
+                    SYSTEM STATUS
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">CPU LOAD:</span>
+                    <span class="metric-value" id="cpu-value">45%</span>
+                </div>
                 <div class="bar-container">
                     <div id="cpu-bar" class="bar-fill" style="width: 45%"></div>
                 </div>
-                <div style="margin-top: 10px;">RAM USAGE</div>
+
+                <div class="metric-row">
+                    <span class="metric-label">RAM USAGE:</span>
+                    <span class="metric-value" id="ram-value">62%</span>
+                </div>
                 <div class="bar-container">
                     <div id="ram-bar" class="bar-fill" style="width: 62%"></div>
                 </div>
-                <div style="margin-top: 10px;">NETWORK: ONLINE</div>
+
+                <div class="metric-row">
+                    <span class="metric-label">GPU USAGE:</span>
+                    <span class="metric-value" id="gpu-value">38%</span>
+                </div>
+                <div class="bar-container">
+                    <div id="gpu-bar" class="bar-fill" style="width: 38%"></div>
+                </div>
+
+                <div class="metric-row">
+                    <span class="metric-label">NETWORK:</span>
+                    <span class="metric-value" id="network-status">ONLINE</span>
+                </div>
+
+                <div class="metric-row">
+                    <span class="metric-label">INTERNET SPEED:</span>
+                    <span class="metric-value" id="internet-speed">125.4 Mbps</span>
+                </div>
             </div>
+
             <div class="widget">
-                <div class="widget-title">ACTIVE TASKS</div>
-                <ul style="padding-left: 20px; list-style-type: square; color: #00E5FF;">
-                    <li>Voice Monitoring</li>
-                    <li>Visual Analysis</li>
-                    <li>Memory Indexing</li>
-                    <li>Security: ARMOR_MODE</li>
-                </ul>
+                <div class="widget-title">
+                    <span class="status-indicator"></span>
+                    SYSTEM HEALTH
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">BATTERY:</span>
+                    <span class="metric-value" id="battery-value">87%</span>
+                </div>
+                <div class="bar-container">
+                    <div id="battery-bar" class="bar-fill" style="width: 87%"></div>
+                </div>
+
+                <div class="metric-row">
+                    <span class="metric-label">TEMPERATURE:</span>
+                    <span class="metric-value" id="temperature-value">42°C</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">CORE TEMP:</span>
+                    <span class="metric-value" id="core-temp-value">48°C</span>
+                </div>
+
+                <div style="margin-top:15px; text-align:center;">
+                    <div class="blink"
+                        style="color:#00E5FF; border:1px solid #00E5FF; display:inline-block; padding:5px 10px;">
+                        <span class="status-indicator"></span>ARMOR SYSTEMS SECURE
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- CENTER PANEL (REACTOR) -->
         <div id="arc-reactor-container">
-            <!-- Three.js Canvas Injected Here -->
-            <div id="status-text" class="glow-text">INITIALIZING</div>
+            <div class="reactor-wrapper">
+                <!-- Single image for the entire arc reactor that rotates as a unit -->
+                <div class="reactor-main">
+                    <img id="arc-reactor-image" src="assets/arc_reactor.png" alt="Arc Reactor">
+                </div>
+                <!-- Extra glow overlay -->
+                <div class="reactor-glow"></div>
+            </div>
+            <div id="status-text" class="glow-text">SYSTEMS INITIALIZED</div>
+            <div id="initialization-text" class="initialization-text active">J.A.R.V.I.S. ARMOR SUITE ONLINE</div>
         </div>
 
         <!-- RIGHT PANEL -->
         <div id="right-panel">
             <div class="widget">
-                <div class="widget-title">MEMORY BANK</div>
-                <div>LTM NODES: 8,421</div>
-                <div>STM BUFFER: CLEAR</div>
-                <div>RELATIONSHIPS: LOCKED</div>
-                <div style="margin-top:20px; text-align:center;">
-                    <div class="blink"
-                        style="color:#00E5FF; border:1px solid #00E5FF; display:inline-block; padding:5px 10px;">DATA
-                        SECURE</div>
+                <div class="widget-title">
+                    <span class="status-indicator"></span>
+                    MEMORY BANK
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">LTM NODES:</span>
+                    <span class="metric-value">8,421</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">STM BUFFER:</span>
+                    <span class="metric-value">CLEAR</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">RELATIONSHIPS:</span>
+                    <span class="metric-value">LOCKED</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">SECURITY LEVEL:</span>
+                    <span class="metric-value">MAXIMUM</span>
                 </div>
             </div>
+
             <div class="widget">
-                <div class="widget-title">TARGETING</div>
-                <div>D: Scanning...</div>
-                <div>V: Passive</div>
-                <div>A: Active</div>
+                <div class="widget-title">
+                    <span class="status-indicator"></span>
+                    ARMOR STATUS
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">PLATING:</span>
+                    <span class="metric-value">INTACT</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">REACTOR OUTPUT:</span>
+                    <span class="metric-value">STABLE</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">HYDRAULICS:</span>
+                    <span class="metric-value">OPTIMAL</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">TARGETING:</span>
+                    <span class="metric-value">ACTIVE</span>
+                </div>
             </div>
         </div>
 
         <!-- FOOTER (COMMUNICATION LOG) -->
         <div id="terminal-panel" class="widget">
-            <div class="widget-title">COMMUNICATION LOG</div>
+            <div class="widget-title">
+                <span class="status-indicator"></span>
+                COMMUNICATION LOG
+            </div>
             <div id="chat-history">
                 <!-- Chat messages injected here -->
             </div>
             <div id="input-area">
                 <span style="color: #00E5FF;">></span>
-                <input type="text" id="command-input" placeholder="INITIATE COMMAND..." onkeydown="handleInput(event)">
+                <input type="text" id="command-input" placeholder="TYPE COMMAND..." onkeydown="handleInput(event)">
             </div>
         </div>
     </div>

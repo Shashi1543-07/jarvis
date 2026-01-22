@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Bridge Debug</title>
+</head>
+
+<body>
+    <h1>QWebChannel Bridge Debug</h1>
+    <div id="status">Waiting...</div>
+    <pre id="output"></pre>
+
+    <script src="qwebchannel.js"></script>
+    <script>
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+
+        function log(msg) {
+            console.log(msg);
+            outputEl.textContent += msg + '\n';
+        }
+
+        log('Page loaded');
+        log('QWebChannel type: ' + typeof QWebChannel);
+        log('qt type: ' + typeof qt);
+
+        setTimeout(() => {
+            if (typeof qt !== 'undefined') {
+                log('qt object exists');
+                log('qt.webChannelTransport type: ' + typeof qt.webChannelTransport);
+
+                if (qt.webChannelTransport) {
+                    log('Starting QWebChannel initialization...');
+                    new QWebChannel(qt.webChannelTransport, function (channel) {
+                        log('Channel callback fired!');
+                        log('Objects: ' + JSON.stringify(Object.keys(channel.objects)));
+
+                        if (channel.objects.bridge) {
+                            window.bridge = channel.objects.bridge;
+                            statusEl.textContent = 'Bridge connected!';
+                            log('Bridge object found!');
+
+                            // Try connecting to signals
+                            bridge.systemStats.connect(function (stats) {
+                                log('Stats received: ' + JSON.stringify(stats));
+                            });
+
+                            bridge.setState.connect(function (state) {
+                                log('State changed: ' + state);
+                            });
+
+                            log('Signals connected. Waiting for data...');
+                        } else {
+                            statusEl.textContent = 'No bridge object!';
+                            log('ERROR: No bridge object in channel.objects');
+                        }
+                    });
+                } else {
+                    log('ERROR: qt.webChannelTransport is undefined');
+                }
+            } else {
+                log('ERROR: qt object is undefined');
+            }
+        }, 500);
+    </script>
+</body>
+
+</html>

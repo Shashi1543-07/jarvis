@@ -47,6 +47,10 @@ class AudioEngine:
         self.tts = TextToSpeechEngine(on_audio_chunk=self._on_tts_chunk)
         print("AudioEngine: TTS ready.")
         self.router = Router()
+        
+        # Connect router callbacks to GUI
+        self.router.on_intent_classified = self._on_intent_from_router
+        
         print("AudioEngine: Router ready.")
 
         self.is_running = False
@@ -87,6 +91,13 @@ class AudioEngine:
         # This can be set to False after enrolling authorized speakers
 
         self.on_text_update = None
+        self.on_audio_level = None
+        self.on_latency_update = None
+        self.on_intent_detected = None
+        
+        # Latency tracking
+        self.request_start_time = None
+        self.last_intent = None
 
     # =====================================================================
     # ENHANCED UTILITY FUNCTIONS
@@ -139,6 +150,14 @@ class AudioEngine:
         except Exception as e:
             print(f"Noise suppression error: {e}")
             return audio_chunk  # Return original if processing fails
+
+    def _on_intent_from_router(self, intent_name, confidence):
+        """Forward intent classification from router to GUI"""
+        if self.on_intent_detected:
+            try:
+                self.on_intent_detected(intent_name, confidence)
+            except Exception as e:
+                print(f"AudioEngine: Failed to forward intent to GUI: {e}")
 
     # =====================================================================
     # PUBLIC START/STOP
@@ -363,6 +382,13 @@ class AudioEngine:
                         print(f"[LISTENING] RMS: {rms:.1f} (Threshold: {threshold:.1f}) VAD: {vad_status}")
                         self.last_diagnostic_time = time.time()
 
+                    # Emit audio level to GUI if subscribed
+                    if self.on_audio_level:
+                        # Normalize RMS for HUD (0-100 range roughly)
+                        # self.RMS_THRESHOLD is 30, so let's scale accordingly
+                        scaled_level = min(100, (rms / 300.0) * 100)
+                        self.on_audio_level(scaled_level)
+
                     # user is speaking
                     if is_speaking:
                         self.speech_frames += 1
@@ -386,12 +412,16 @@ class AudioEngine:
 
                                 if text and len(text) > 2:
                                     print("User:", text)
+                                    
+                                    # Track request start time for latency calculation
+                                    self.request_start_time = time.time()
+                                    
                                     if self.on_text_update:
                                         try:
                                             self.on_text_update("user", text)
                                         except Exception as e:
-                                            print(f"AudioEngine: GUI update failed: {e}")
-                                            self.on_text_update = None
+                                            print(f"AudioEngine: GUI chat update failed: {e}")
+                                            # Don't disable callback, just log the error
 
                                     response = self.router.route(text)
                                     action = response.get("action")
@@ -407,12 +437,24 @@ class AudioEngine:
                                     if reply:
                                         self.state_controller.safe_state_transition(VoiceState.SPEAKING)
                                         self.speech_start_time = time.time()
+                                        
+                                        # Calculate and emit latency
+                                        if self.request_start_time:
+                                            latency_ms = int((time.time() - self.request_start_time) * 1000)
+                                            print(f"AudioEngine: Response latency: {latency_ms}ms")
+                                            if self.on_latency_update:
+                                                try:
+                                                    self.on_latency_update(latency_ms)
+                                                except Exception as e:
+                                                    print(f"AudioEngine: GUI latency update failed: {e}")
+                                            self.request_start_time = None
+                                        
                                         if self.on_text_update:
                                             try:
                                                 self.on_text_update("jarvis", reply)
                                             except Exception as e:
-                                                print(f"AudioEngine: GUI update failed: {e}")
-                                                self.on_text_update = None
+                                                print(f"AudioEngine: GUI chat update failed: {e}")
+                                                # Don't disable callback, just log the error
                                         self.tts.start_tts_stream(reply)
                                     else:
                                         print("AudioEngine: Empty response (filler handled) → LISTENING")

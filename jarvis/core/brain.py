@@ -16,6 +16,10 @@ class Brain:
         self.local_brain = LocalBrain(self.memory) # Initialize LocalBrain with shared memory
         self.briefing_manager = BriefingManager(self.memory, self.local_brain.ollama)
         self.behavior_learning = BehaviorLearning(self.memory) # Initialize behavior learning
+        
+        # GUI callback for intent classification
+        self.on_intent_classified = None
+        
         print("Brain initialized with Local protocols.")
 
     def think(self, text, short_term_memory=None, long_term_memory=None):
@@ -27,6 +31,15 @@ class Brain:
         # 1. Classify the user intent
         classification = self.classifier.classify(text)
         print(f"DEBUG: Intent Classified as: {classification}")
+        
+        # Emit classification to GUI if callback registered
+        if self.on_intent_classified:
+            try:
+                # Use simple confidence based on classification type
+                confidence = 0.95 if classification != "CHAT" else 0.75
+                self.on_intent_classified(classification, confidence)
+            except Exception as e:
+                print(f"Brain: Failed to emit intent to GUI: {e}")
 
         # 2. Learn from this interaction
         self.behavior_learning.learn_from_interaction(text, "", datetime.datetime.now())
