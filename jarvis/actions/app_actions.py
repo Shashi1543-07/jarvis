@@ -3,22 +3,29 @@ import pyautogui
 import time
 import pygetwindow as gw
 
-def open_app(app_name):
-    print(f"Opening app: {app_name}")
+def open_app(app_name, **kwargs):
+    """Open an application using the Windows key method"""
+    # Clean app name name
+    clean_name = app_name.strip().rstrip('.')
+    print(f"Opening app: {clean_name}")
+    
     pyautogui.press("win")
     time.sleep(0.5)
-    pyautogui.write(app_name)
+    pyautogui.write(clean_name)
     time.sleep(0.5)
     pyautogui.press("enter")
-    return f"Opening {app_name}"
+    return f"Opening {clean_name}"
 
-def close_app(app_name):
-    print(f"Closing app: {app_name}")
+def close_app(app_name, **kwargs):
+    """Close an application by name"""
+    # Clean app name
+    clean_name = app_name.lower().strip().rstrip('.')
+    print(f"Closing app: {clean_name}")
     
     # Common process name mapping
     process_map = {
         "chrome": "chrome.exe",
-        "google chrome": "chrome.exe",
+        "google chrome": "chrome.exe",  # Fixed mapping
         "firefox": "firefox.exe",
         "notepad": "notepad.exe",
         "calculator": "calc.exe",
@@ -26,6 +33,7 @@ def close_app(app_name):
         "spotify": "spotify.exe",
         "code": "Code.exe",
         "vscode": "Code.exe",
+        "vs code": "Code.exe",          # Added mapping
         "visual studio code": "Code.exe",
         "word": "WINWORD.EXE",
         "excel": "EXCEL.EXE",
@@ -37,8 +45,9 @@ def close_app(app_name):
     }
     
     # 1. Try closing by window title first (gentle close)
+    # Using original clean_name for title search, as titles keep spaces
     try:
-        windows = gw.getWindowsWithTitle(app_name)
+        windows = gw.getWindowsWithTitle(clean_name)
         if windows:
             for window in windows:
                 try:
@@ -49,28 +58,33 @@ def close_app(app_name):
             time.sleep(1) # Wait for close
             
             # Check if still open, if so, fall through to taskkill
-            if not gw.getWindowsWithTitle(app_name):
-                return f"Closed {app_name} windows."
+            if not gw.getWindowsWithTitle(clean_name):
+                return f"Closed {clean_name} windows."
     except Exception as e:
         print(f"Window close error: {e}")
 
     # 2. Try closing by process name (force close)
-    process_name = process_map.get(app_name.lower())
+    # Be more aggressive with mapping and normalization
+    lookup_name = clean_name.replace(" ", "").replace(".", "")
+    process_name = process_map.get(clean_name) or process_map.get(lookup_name)
     
     # If not in map, try using the app name as process name
     if not process_name:
-        # Simple heuristic: remove spaces, add .exe
-        process_name = app_name.lower().replace(" ", "") + ".exe"
+        process_name = lookup_name + ".exe"
+    
+    # Double check for double extension
+    if process_name.endswith("..exe"):
+        process_name = process_name.replace("..exe", ".exe")
     
     print(f"Attempting taskkill for {process_name}...")
     try:
         result = os.system(f"taskkill /f /im {process_name}")
         if result == 0:
-            return f"Successfully closed {app_name} (process {process_name})."
+            return f"Successfully closed {clean_name} (process {process_name})."
         else:
             # If exact match failed, try to find process containing the name
             # This is a bit risky but effective for things like "discord" -> "Discord.exe"
-            return f"Could not close {app_name}. Process not found or access denied."
+            return f"Could not close {clean_name}. Process not found or access denied."
     except Exception as e:
         return f"Error closing app via taskkill: {e}"
 

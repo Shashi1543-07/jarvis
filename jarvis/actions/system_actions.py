@@ -4,6 +4,7 @@ import platform
 import psutil
 import datetime
 import time
+import pygetwindow as gw
 
 
 def shutdown_system():
@@ -38,8 +39,92 @@ def set_volume(volume_level):
     Set system volume to a specific percentage (0-100).
     """
     print(f"Setting volume to {volume_level}%")
+    success = False
+    
+    # 1. Try pycaw with robust device iteration
     try:
-        # Try using pycaw for direct volume control
+        from ctypes import cast, POINTER
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        
+        # Get all devices rather than relying on GetSpeakers() which can be buggy
+        devices = AudioUtilities.GetAllDevices()
+        
+        scalar = float(volume_level) / 100.0
+        
+        for device in devices:
+            # Try to activate the interface on each device
+            # We target Active devices usually, or all to be safe
+            try:
+                # Based on debug output, these might handle activation internally 
+                # or we accept the raw interface if available. But typical pycaw usage:
+                interface = device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+                volume = cast(interface, POINTER(IAudioEndpointVolume))
+                volume.SetMasterVolumeLevelScalar(scalar, None)
+                success = True
+            except Exception as d_e:
+                # Some devices (mics) might fail or lack the interface
+                pass
+                
+        if success:
+            return f"Volume set to {volume_level}%"
+    except Exception as e:
+        print(f"Direct volume error: {e}")
+
+    # 2. Optimized Fallback (Fast Reset)
+    # If pycaw managed to do nothing or failed, we use keyboard.
+    print("Using fast fallback for volume...")
+    
+    # Temporarily speed up pyautogui
+    original_pause = pyautogui.PAUSE
+    pyautogui.PAUSE = 0.01 
+    
+    try:
+        # 1. Mute to ensure we are silent (optional, but resetting to 0 is safer for absolute)
+        # Actually resetting to 0 via 50 down presses is reliable
+        pyautogui.press("volumedown", presses=50)
+        
+        # 2. Go up to target. 50 presses = 100% usually (step is often 2%)
+        steps = int(int(volume_level) / 2)
+        pyautogui.press("volumeup", presses=steps)
+    finally:
+        pyautogui.PAUSE = original_pause
+        
+    return f"Volume set to approx {volume_level}% (via Fallback)"
+
+def mute_volume():
+    print("Muting volume...")
+    try:
+        from ctypes import cast, POINTER
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        volume.SetMute(1, None)
+        return "System muted."
+    except:
+        pyautogui.press("volumemute")
+        return "Volume muted toggle triggered."
+
+def unmute_volume():
+    print("Unmuting volume...")
+    try:
+        from ctypes import cast, POINTER
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        volume.SetMute(0, None)
+        return "System unmuted."
+    except:
+        pyautogui.press("volumemute")
+        return "Volume unmute toggle triggered."
+
+def increase_volume(step=10):
+    """Increase system volume by a step value"""
+    try:
         from ctypes import cast, POINTER
         from comtypes import CLSCTX_ALL
         from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
@@ -48,33 +133,34 @@ def set_volume(volume_level):
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
         volume = cast(interface, POINTER(IAudioEndpointVolume))
         
-        # Set volume scalar (0.0 to 1.0)
-        scalar = float(volume_level) / 100.0
-        volume.SetMasterVolumeLevelScalar(scalar, None)
-        return f"Volume set to {volume_level}%"
-    except ImportError:
-        print("pycaw library not found. Falling back to key presses.")
+        current = volume.GetMasterVolumeLevelScalar()
+        new_volume = min(1.0, current + (float(step) / 100.0))
+        volume.SetMasterVolumeLevelScalar(new_volume, None)
+        return f"Volume increased to {round(new_volume * 100)}%"
     except Exception as e:
-        print(f"pycaw error: {e}. Falling back to key presses.")
+        # Fallback
+        pyautogui.press("volumeup", presses=int(step/2))
+        return f"Volume increased by approximately {step}%"
 
-    # Fallback: Basic implementation using pyautogui
-    # Reset to 0
-    for _ in range(50):
-        pyautogui.press("volumedown")
-    # Increase to desired level (assuming each press is ~2%)
-    presses = int(int(volume_level) / 2)
-    pyautogui.press("volumeup", presses=presses)
-    return f"Volume set to approximately {volume_level}%"
-
-def mute_volume():
-    print("Muting volume...")
-    pyautogui.press("volumemute")
-    return "Volume muted."
-
-def unmute_volume():
-    print("Unmuting volume...")
-    pyautogui.press("volumemute")
-    return "Volume unmuted."
+def decrease_volume(step=10):
+    """Decrease system volume by a step value"""
+    try:
+        from ctypes import cast, POINTER
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        
+        current = volume.GetMasterVolumeLevelScalar()
+        new_volume = max(0.0, current - (float(step) / 100.0))
+        volume.SetMasterVolumeLevelScalar(new_volume, None)
+        return f"Volume decreased to {round(new_volume * 100)}%"
+    except Exception as e:
+        # Fallback
+        pyautogui.press("volumedown", presses=int(step/2))
+        return f"Volume decreased by approximately {step}%"
 
 def set_brightness(level):
     """
@@ -297,15 +383,19 @@ def adjust_brightness():
         return f"Failed to get brightness: {e}"
 
 def sleep_system():
-    """Put system to sleep"""
-    print("Putting system to sleep...")
+    """Put system to sleep (Configured to Lock Screen)"""
+    print("Locking system (User preference for sleep)...")
     if platform.system() == "Windows":
-        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+        # User requested "sleep" command to just lock the screen
+        os.system("rundll32.exe user32.dll,LockWorkStation")
     elif platform.system() == "Darwin":
-        os.system("pmset sleepnow")
+        os.system("pmset displaysleepnow")
     elif platform.system() == "Linux":
-        os.system("systemctl suspend")
-    return "System is going to sleep."
+        # Locking screen usually depends on the desktop environment (gnome, kde, etc)
+        # Using a common one or falling back to sleep if lock not found is tricky, 
+        # but for now we'll stick to the requested behavior adjustment for Windows primarily.
+        os.system("gnome-screensaver-command -l") 
+    return "Screen locked (System Sleep mode)."
 
 def restart_system():
     """Restart the system"""
@@ -386,11 +476,56 @@ def close_application(app_name):
     """Close a specific application by name"""
     try:
         if platform.system() == "Windows":
-            os.system(f"taskkill /im {app_name}.exe /f")
-            return f"Closed {app_name}."
+            # Map common names to process names
+            apps = {
+                "notepad": "notepad.exe",
+                "calculator": "calc.exe",
+                "paint": "mspaint.exe",
+                "wordpad": "write.exe",
+                "cmd": "cmd.exe",
+                "powershell": "powershell.exe",
+                "explorer": "explorer.exe",
+                "chrome": "chrome.exe",
+                "firefox": "firefox.exe",
+                "edge": "msedge.exe",
+                "vscode": "code.exe",
+                "vs code": "code.exe",
+                "code": "code.exe",
+                "spotify": "spotify.exe",
+                "steam": "steam.exe",
+                "discord": "discord.exe"
+            }
+            
+            # Clean app name (remove trailing punctuation)
+            clean_name = app_name.lower().strip().rstrip('.')
+            
+            process_name = apps.get(clean_name, f"{clean_name}.exe")
+            
+            # Handle case where .exe was already in the mapping or provided
+            if not process_name.endswith(".exe"):
+                 process_name += ".exe"
+                 
+            # Check if still open, if so, fall through to taskkill
+            if not gw.getWindowsWithTitle(clean_name):
+                os.system(f"taskkill /im {process_name} /f")
+                return f"Closed {clean_name} ({process_name})."
+            else:
+                # If windows are found, try to close them gracefully first
+                windows = gw.getWindowsWithTitle(clean_name)
+                for window in windows:
+                    try:
+                        window.close()
+                    except Exception as win_e:
+                        print(f"Error closing window {window.title}: {win_e}")
+                # If after trying to close windows, they are still there, force kill
+                if gw.getWindowsWithTitle(clean_name):
+                    os.system(f"taskkill /im {process_name} /f")
+                    return f"Attempted graceful close, then force closed {clean_name} ({process_name})."
+                return f"Closed {clean_name} windows."
         else:
             return f"Closing applications is currently only supported on Windows."
     except Exception as e:
+        print(f"Window close error: {e}")
         return f"Failed to close {app_name}: {e}"
 
 def system_info():
@@ -470,8 +605,83 @@ def maximize_app(name):
         return f"Maximized {name}."
     return f"Window {name} not found."
 
-def activate_boss_key(cover_app="code"):
-    """Instantly hide distractions and focus a work app"""
-    from core.os.macro_engine import MacroEngine
     me = MacroEngine()
     return me.activate_boss_key(cover_app)
+
+def handle_system_control(**kwargs):
+    """
+    Dispatcher for SYSTEM_CONTROL intent.
+    Accepts loose kwargs to avoid crashes and routes to specific functions.
+    """
+    print(f"System Control Dispatch: {kwargs}")
+    
+    # 1. Check for specific command/action slots
+    command = kwargs.get("command") or kwargs.get("action") or kwargs.get("operation")
+    
+    # 2. Heuristics based on other slots if command is missing
+    # (Sometimes NLU puts 'restart' in 'app_name' if confused)
+    if not command:
+        for val in kwargs.values():
+            if isinstance(val, str):
+                if "restart" in val.lower(): command = "restart"
+                elif "shutdown" in val.lower(): command = "shutdown"
+                elif "sleep" in val.lower(): command = "sleep"
+    
+    if command:
+        cmd = command.lower()
+        if "restarts" in cmd or "restart" in cmd: return restart_system()
+        if "shutdown" in cmd: return shutdown_system()
+        if "sleep" in cmd: return sleep_system()
+        if "lock" in cmd: return lock_system()
+        if "logout" in cmd or "log out" in cmd: return log_out()
+        if "hibernate" in cmd: return hibernate_system()
+        if "unmute" in cmd: return unmute_volume()
+        elif "mute" in cmd: return mute_volume()
+        if "screenshot" in cmd: return take_screenshot()
+        
+        # Added missing handlers based on log analysis
+        if "volume" in cmd:
+            import re
+            all_text = f"{cmd} {kwargs.get('content', '')} {kwargs.get('text', '')}".lower()
+            nums = re.findall(r'(\d+)', all_text)
+            if nums:
+                val = int(nums[0])
+                if "to" in all_text or "set" in all_text or "at" in all_text:
+                    return set_volume(val)
+                elif "increase" in all_text or "up" in all_text:
+                    return increase_volume(val)
+                elif "decrease" in all_text or "down" in all_text:
+                    return decrease_volume(val)
+                return set_volume(val)
+            elif "increase" in cmd or "up" in cmd:
+                return increase_volume()
+            elif "decrease" in cmd or "down" in cmd or "decrease_volume" in cmd or "volume_decrease" in cmd:
+                return decrease_volume()
+            return set_volume(50)
+
+        if "brightness" in cmd:
+            import re
+            all_text = f"{cmd} {kwargs.get('content', '')} {kwargs.get('text', '')}".lower()
+            nums = re.findall(r'(\d+)', all_text)
+            
+            if nums:
+               val = int(nums[0])
+               # "increase to 100%" or "set to 80%" or just "80%" -> absolute
+               if "to" in all_text or "set" in all_text or "at" in all_text:
+                   return set_brightness(val)
+               # "increase by 20%" or "up 20%" -> relative
+               elif "increase" in all_text or "up" in all_text:
+                   return increase_brightness(val)
+               elif "decrease" in all_text or "down" in all_text:
+                   return decrease_brightness(val)
+               # Default for "brightness 50" -> absolute
+               return set_brightness(val)
+            elif "increase" in cmd:
+               return increase_brightness()
+            elif "decrease" in cmd:
+               return decrease_brightness()
+            return adjust_brightness()
+         
+    # 3. Fallback to System Info (safe default) if no specific command identified
+    # But do NOT crash if args are present
+    return system_info()

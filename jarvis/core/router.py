@@ -14,9 +14,22 @@ from actions import (
 
 class Router:
     def __init__(self):
-        self.memory = EnhancedMemory()
+        self.memory = EnhancedMemory() # Keep for legacy, but transition to Manager
+        from .memory.manager import MemoryManager
+        self.memory_manager = MemoryManager()
+        
+        # Initialize Planner & Executor
+        from .planner.engine import PlannerEngine
+        from .executor import Executor
+        self.planner = PlannerEngine()
+        self.executor = Executor()
+        
         self.brain = Brain(self.memory) # Share common memory instance
         self.action_map = self._build_action_map()
+        
+        # New Intent Support
+        self.pending_intent = None  # Store intent requiring confirmation
+        self.intent_map = self._build_intent_map()
         
         # GUI callback for intent classification
         self.on_intent_classified = None
@@ -24,7 +37,7 @@ class Router:
         # Connect brain's classification to router's callback
         self.brain.on_intent_classified = lambda intent, conf: self.on_intent_classified(intent, conf) if self.on_intent_classified else None
         
-        print("Router initialized with dynamic action dispatch.")
+        print("Router initialized with dynamic action dispatch and Intent System.")
 
         # Register exit handler to clear temporary memory
         atexit.register(self._cleanup_on_exit)
@@ -47,17 +60,89 @@ class Router:
                     action_map[name] = func
         return action_map
 
+    def _build_intent_map(self):
+        """Map Intent Strings to Action Functions"""
+        return {
+            "SYSTEM_OPEN_APP": app_actions.open_app,
+            "SYSTEM_CLOSE_APP": app_actions.close_app,
+            "SYSTEM_CONTROL": system_actions.handle_system_control, # Updated dispatcher
+            "FILE_DELETE": file_actions.delete_file,
+            "FILE_SEARCH": file_actions.search_file,
+            "BROWSER_SEARCH": web_actions.google_search if hasattr(web_actions, 'google_search') else web_actions.open_website,
+            
+            # Semantic Memory Intents
+            "MEMORY_WRITE": self._handle_memory_write,
+            "MEMORY_READ": self._handle_memory_read,
+            "MEMORY_FORGET": self._handle_memory_forget,
+        }
+
+    # --- Memory Handlers ---
+    def _handle_memory_write(self, content=None, **kwargs):
+        """Handle explicit memory write requests"""
+        from .memory.entries import MemoryType
+        if not content: return "I didn't catch what you wanted me to remember."
+        
+        # Determine strict intent from slot if possible, else LTM
+        result = self.memory_manager.propose_write(content, MemoryType.LONG_TERM, confidence=1.0)
+        return result["message"]
+
+    def _handle_memory_read(self, query=None, **kwargs):
+        """Handle memory retrieval requests"""
+        if not query: return "What do you want me to recall?"
+        results = self.memory_manager.retrieve(query)
+        if results:
+            # Format top result for speech
+            top = results[0]
+            return f"I remember: {top.content}"
+        return f"I couldn't recall anything about '{query}'."
+
+    def _handle_memory_forget(self, content=None, **kwargs):
+        """Handle forget requests"""
+        target = content
+        if not target: return "What should I forget?"
+        return f"I will forget about '{target}'. (Implementation pending integration)"
+
     def route(self, text):
         print(f"User Input: {text}")
 
         # Update personality profile based on recent interactions
         self.memory.analyze_personality()
 
+        # -----------------------------------------------------------------
+        # CONFIRMATION LOOP
+        # -----------------------------------------------------------------
+        if self.pending_intent:
+            text_lower = text.lower()
+            if any(w in text_lower for w in ["yes", "yeah", "do it", "confirm", "sure", "proceed"]):
+                # User Confirmed
+                print(f"DEBUG: User confirmed pending intent: {self.pending_intent}")
+                intent_to_run = self.pending_intent
+                self.pending_intent = None
+                return self._execute_intent(intent_to_run)
+            elif any(w in text_lower for w in ["no", "cancel", "don't", "stop", "abort"]):
+                # User Cancelled
+                self.pending_intent = None
+                return {"text": "Cancelled.", "action": "speak"}
+            self.pending_intent = None
+
+        # -----------------------------------------------------------------
+        # LAYER 0: MULTI-STEP PLANNER CHECK
+        # -----------------------------------------------------------------
+        if self.planner.should_plan(text):
+            print("Router: Detected complex command. Invoking Planner...")
+            plan = self.planner.generate_plan(text)
+            print(f"Router: Plan Generated: {plan}")
+            result = self.executor.execute_plan(plan)
+            return {"text": f"Plan execution result: {result['message']}", "action": "PLAN_COMPLETE"}
+
+        # -----------------------------------------------------------------
+        # NORMAL NLU FLOW
+        # -----------------------------------------------------------------
         llm_response = self.brain.think(text, self.memory.short_term, self.memory.long_term)
 
         try:
             clean_response = llm_response.replace("```json", "").replace("```", "").strip()
-            print(f"DEBUG: Raw LLM Response: {clean_response}")
+            # print(f"DEBUG: Raw LLM Response: {clean_response}")
             if not clean_response.startswith("{"):
                 response_data = {"action": "speak", "text": clean_response}
             else:
@@ -66,16 +151,21 @@ class Router:
             # Extract and emit intent if present
             if "intent" in response_data and self.on_intent_classified:
                 intent_name = response_data["intent"]
-                confidence = response_data.get("confidence", 0.9)  # Default confidence
+                confidence = response_data.get("confidence", 0.9)
                 try:
                     self.on_intent_classified(intent_name, confidence)
                 except Exception as e:
                     print(f"Router: Failed to emit intent to GUI: {e}")
+            
+            # CHECK FOR NEW INTENT STRUCTURE WITH SLOTS
+            if "intent" in response_data and "slots" in response_data:
+                return self._handle_intent_object(response_data)
                     
         except json.JSONDecodeError:
             print(f"Error parsing JSON: {llm_response}")
             response_data = {"action": "speak", "text": "I'm having trouble thinking clearly."}
 
+        # Fallback to Legacy Action-Dictionary Handling
         reply_text = response_data.get("text", "")
 
         # 1. Update Memory
@@ -160,6 +250,56 @@ class Router:
         # Return action name of the first action for state machine triggers (like sleep)
         main_action = actions_to_run[0].get("action") if actions_to_run else None
         return {"text": final_text, "action": main_action}
+
+    def _handle_intent_object(self, intent_data):
+        intent_type = intent_data.get("intent")
+        slots = intent_data.get("slots", {})
+        requires_confirmation = intent_data.get("requires_confirmation", False)
+        clarification_question = intent_data.get("clarification_question")
+
+        # 1. Clarification Needed
+        if intent_type == "CLARIFICATION_REQUIRED" and clarification_question:
+            return {"text": clarification_question, "action": "speak"}
+            
+        # 2. Safety Confirmation
+        # USER REQUEST: Only shutdown/restart should ask for confirmation.
+        is_high_risk = any(kw in intent_type.lower() for kw in ["shutdown", "restart", "reboot"])
+        
+        if requires_confirmation and is_high_risk:
+            self.pending_intent = intent_data
+            target_name = slots.get("app_name") or slots.get("file_name") or "item"
+            return {"text": f"This action requires confirmation. Are you sure you want to proceed with {intent_type} on {target_name}?", "action": "speak"}
+            
+        # 3. Execution (Skip confirmation for non-high-risk actions)
+        return self._execute_intent(intent_data)
+
+    def _execute_intent(self, intent_data):
+        intent_type = intent_data.get("intent")
+        slots = intent_data.get("slots", {})
+        
+        # Check Intent Map First
+        if intent_type in self.intent_map:
+            func = self.intent_map[intent_type]
+            try:
+                # Dynamic execution
+                # We need to map slots to function arguments intelligently
+                # For now, simplistic mapping: pass slots as kwargs
+                kwargs = {**slots}
+                if "original_text" in intent_data:
+                    # Provide original text so handlers can extract tricky params themselves
+                    kwargs["text"] = intent_data["original_text"]
+                
+                print(f"Executing Intent {intent_type} with slots {slots}")
+                res = func(**kwargs)
+                return {"text": str(res), "action": intent_type}
+            except Exception as e:
+                print(f"Error executing intent {intent_type}: {e}")
+                return {"text": f"Error executing command: {e}", "action": "error"}
+        
+        if "text" in intent_data:
+            return {"text": intent_data["text"], "action": "speak"}
+            
+        return {"text": "I understood the intent but don't have a handler for it yet.", "action": "speak"}        
 
     def _log_action(self, action, params, result):
         try:
