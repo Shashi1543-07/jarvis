@@ -4,17 +4,66 @@ import time
 import pygetwindow as gw
 
 def open_app(app_name, **kwargs):
-    """Open an application using the Windows key method"""
+    """Open an application using robust system calls or fallback to Windows key method"""
     # Clean app name name
-    clean_name = app_name.strip().rstrip('.')
+    clean_name = app_name.strip().rstrip('.').lower()
     print(f"Opening app: {clean_name}")
     
-    pyautogui.press("win")
-    time.sleep(0.5)
-    pyautogui.write(clean_name)
-    time.sleep(0.5)
-    pyautogui.press("enter")
-    return f"Opening {clean_name}"
+    # 1. Broad mapping for system-level apps/commands
+    system_map = {
+        "camera": "INTERNAL_VISION",
+        "your eyes": "INTERNAL_DEEP_SCAN",
+        "eyes": "INTERNAL_DEEP_SCAN",
+        "calculator": "calc.exe",
+        "notepad": "notepad.exe",
+        "chrome": "chrome.exe",
+        "settings": "start ms-settings:",
+        "explorer": "explorer.exe",
+        "terminal": "wt.exe",
+        "windows camera": "start microsoft.windows.camera:"
+    }
+    
+    if clean_name in system_map:
+        cmd = system_map[clean_name]
+        
+        # Internal Redirects
+        if cmd.startswith("INTERNAL"):
+            try:
+                # Lazy import to avoid circular dependency
+                from . import vision_actions
+                if cmd == "INTERNAL_VISION":
+                    return vision_actions.open_camera()
+                elif cmd == "INTERNAL_DEEP_SCAN":
+                    return vision_actions.deep_scan()
+            except Exception as e:
+                print(f"Error triggering internal vision: {e}")
+                # Fallback to windows camera app if internal fails
+                cmd = "start microsoft.windows.camera:"
+
+        try:
+            import subprocess
+            subprocess.Popen(cmd, shell=True)
+            return f"Opening {clean_name} via system command."
+        except Exception as e:
+            print(f"Error opening mapped app {clean_name}: {e}")
+
+    # 2. Fallback to Search/Type method (risky with pyautogui fail-safe)
+    print(f"Falling back to GUI automation for: {clean_name}")
+    try:
+        # Avoid crashing everything if mouse is in corner
+        original_failsafe = pyautogui.FAILSAFE
+        pyautogui.FAILSAFE = False 
+        
+        pyautogui.press("win")
+        time.sleep(0.5)
+        pyautogui.write(clean_name)
+        time.sleep(0.5)
+        pyautogui.press("enter")
+        
+        pyautogui.FAILSAFE = original_failsafe
+        return f"Attempted to open {clean_name} via GUI automation."
+    except Exception as e:
+        return f"Failed to open {clean_name} via GUI automation: {e}"
 
 def close_app(app_name, **kwargs):
     """Close an application by name"""
