@@ -77,6 +77,9 @@ brain/
 screenshots/
 *.wav
 *.mp3
+*.jpg
+debug_*.jpg
+debug_*.png
 
 # Secrets
 jarvis/config/secrets.json

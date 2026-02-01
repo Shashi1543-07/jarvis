@@ -24,6 +24,14 @@ class NLUEngine:
             (r"(close|quit|exit|kill) (.+)", IntentType.SYSTEM_CLOSE_APP, lambda m: {"app_name": clean_slot(m.group(2))}),
             (r"(delete|remove|erase) (.+)", IntentType.FILE_DELETE, lambda m: {"file_name": clean_slot(m.group(2))}),
             (r"(search for|find) (.+) in browser", IntentType.BROWSER_SEARCH, lambda m: {"query": clean_slot(m.group(2))}),
+            # Vision & Screen OCR
+            (r"(?:read|ocr)(?:\s+(?:the|what's|what is|whats|text|written|on|in|from|at|the)){0,4}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Read {m.group(1)}"}),
+            (r"(?:read|ocr|display)(?:\s+(?:the|what's|what is|whats)){0,3}\s+screen", IntentType.SCREEN_OCR, lambda m: {}),
+            (r"(?:look|see|read|ocr)\s+(?:at|what's|what is|whats|the|this){0,3}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Look at {m.group(1)}"}),
+            (r"(?:describe|analyze|what's|whats|what is)(?:\s+(?:on|the|what is on|what's on)){0,4}\s+screen", IntentType.SCREEN_DESCRIBE, lambda m: {}),
+            (r"(?:describe|what do|what's|whats|what is|analyze)(?:\s+(?:you|the|visible|in front|of|me|this)){0,5}\s+(?:see|visible|happening|in front|at|scene|around)", IntentType.VISION_DESCRIBE, lambda m: {}),
+            (r"(?:detect|find|what|list)(?:\s+(?:all|the|some|visible|any)){0,3}\s+(?:objects|things|items)(?:\s+(?:there|in front|visible|of me|here)){0,4}", IntentType.VISION_OBJECTS, lambda m: {}),
+            (r"(?:who|identify|recognize)(?:\s+(?:is |are |this |the )){0,3}(?:people|person|one|individual)(?:\s+(?:there|in front|visible|here)){0,4}", IntentType.VISION_PEOPLE, lambda m: {}),
         ]
 
     def parse(self, text: str, context: Optional[str] = None) -> Intent:
@@ -47,8 +55,10 @@ class NLUEngine:
 
     def _check_rules(self, text: str) -> Optional[Intent]:
         text_lower = text.lower()
+        text_lower = text.lower()
         for pattern, intent_type, slot_extractor in self.rules:
-            match = re.match(pattern, text_lower)
+            # Use search instead of match to handle prefixes like "can you", "jarvis", "please"
+            match = re.search(pattern, text_lower)
             if match:
                 slots = slot_extractor(match)
                 
@@ -84,6 +94,13 @@ class NLUEngine:
             "   - Slot: 'query' (what to look for)\n"
             "- MEMORY_FORGET: User asks to forget something.\n"
             "   - Slot: 'content' (what to forget)\n"
+            "- VISION_OCR: Read text from camera/eyes ('read what you see', 'what does it say').\n"
+            "   - Slot: 'prompt' (e.g. 'Read the book header')\n"
+            "- VISION_DESCRIBE: Describe scene or objects ('what do you see', 'describe this').\n"
+            "- VISION_OBJECTS: List objects ('what objects are there').\n"
+            "- VISION_PEOPLE: Identify people ('who are you looking at').\n"
+            "- SCREEN_OCR: Read text from the laptop screen ('read the screen', 'what's on my display').\n"
+            "- SCREEN_DESCRIBE: Describe screen content.\n"
             "- TASK_MANAGEMENT, KNOWLEDGE_QUERY, CONVERSATION, CLARIFICATION_REQUIRED\n"
             "\n"
             "Response Format:\n"

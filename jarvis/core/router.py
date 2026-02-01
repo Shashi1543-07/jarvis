@@ -74,6 +74,14 @@ class Router:
             "MEMORY_WRITE": self._handle_memory_write,
             "MEMORY_READ": self._handle_memory_read,
             "MEMORY_FORGET": self._handle_memory_forget,
+            
+            # Vision Intents
+            "VISION_OCR": vision_actions.read_text,
+            "VISION_DESCRIBE": vision_actions.describe_scene,
+            "VISION_OBJECTS": vision_actions.detect_objects,
+            "VISION_PEOPLE": vision_actions.identify_people,
+            "SCREEN_OCR": vision_actions.read_screen,
+            "SCREEN_DESCRIBE": vision_actions.describe_screen,
         }
 
     # --- Memory Handlers ---

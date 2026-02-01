@@ -17,15 +17,25 @@ class PlannerEngine:
         Heuristic check: Does this command look like it needs a plan?
         """
         # 1. Keywords indicating sequence
-        triggers = [" and ", " then ", " after ", " before ", " -> ", " until ", " while "]
+        triggers = [" then ", " after ", " before ", " -> "]
+        # " and " is too common, only plan if it connects two distinct action verbs
         if any(t in text.lower() for t in triggers):
             return True
             
         # 2. Complexity check (number of distinct verbs/actions?)
-        # Simple heuristic: lengthy command with multiple action verbs
-        action_verbs = ["open", "search", "create", "delete", "write", "check", "run", "calculate", "find", "play"]
+        action_verbs = ["open", "search", "create", "delete", "write", "check", "run", "calculate", "find", "play", "type", "click"]
         count = sum(1 for v in action_verbs if v in text.lower())
-        if count >= 2:
+        
+        # 3. Vision check: If it's a simple vision command, don't plan unless it's clearly multi-step
+        vision_keywords = ["read", "see", "look", "describe", "analyze", "detect", "ocr", "holding"]
+        is_vision = any(vk in text.lower() for vk in vision_keywords)
+        
+        # If it's vision and has 'and', only plan if there are 2+ distinct non-vision actions
+        if is_vision and " and " in text.lower():
+            if count >= 2: return True
+            return False
+
+        if count >= 3: # Higher threshold for planning without explicit sequence words
             return True
             
         return False
@@ -54,6 +64,11 @@ class PlannerEngine:
             "- SYSTEM_CONTROL (input: command like 'increase volume')\n"
             "- CLICK_ON_TEXT (input: exact text to find and click on screen)\n"
             "- TYPE_AT_TEXT (input: object {target: 'text to click', text: 'text to type'})\n"
+            "- VISION_OCR (input: optional prompt context)\n"
+            "- VISION_DESCRIBE (input: optional prompt context)\n"
+            "- VISION_OBJECTS (input: optional object name)\n"
+            "- SCREEN_OCR (input: null)\n"
+            "- SCREEN_DESCRIBE (input: null)\n"
             "- ACTION_REQUEST (input: generic action)\n"
             "\n"
             "Automation Rules:\n"

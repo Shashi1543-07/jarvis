@@ -34,6 +34,16 @@ class IntentType(Enum):
     CONVERSATION = "CONVERSATION"
     GREETING = "GREETING"
     
+    # Vision
+    VISION_DESCRIBE = "VISION_DESCRIBE"
+    VISION_OCR = "VISION_OCR"
+    VISION_OBJECTS = "VISION_OBJECTS"
+    VISION_PEOPLE = "VISION_PEOPLE"
+    
+    # Screen Analysis
+    SCREEN_OCR = "SCREEN_OCR"
+    SCREEN_DESCRIBE = "SCREEN_DESCRIBE"
+
     # Emergency
     EMERGENCY = "EMERGENCY"
     

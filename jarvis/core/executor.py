@@ -129,6 +129,31 @@ class Executor:
                         target = val
                         text = "" 
                     return type_at_text(target, text)
+
+            # --- VISION TOOLS ---
+            elif tool == "VISION_OCR":
+                from jarvis.actions.vision_actions import read_text
+                return read_text(prompt=val)
+            
+            elif tool == "VISION_DESCRIBE":
+                from jarvis.actions.vision_actions import describe_scene
+                return describe_scene()
+            
+            elif tool == "VISION_OBJECTS":
+                from jarvis.actions.vision_actions import detect_objects
+                return detect_objects()
+            
+            elif tool == "VISION_PEOPLE":
+                from jarvis.actions.vision_actions import identify_people
+                return identify_people()
+            
+            elif tool == "SCREEN_OCR":
+                from jarvis.actions.vision_actions import read_screen
+                return read_screen()
+            
+            elif tool == "SCREEN_DESCRIBE":
+                from jarvis.actions.vision_actions import describe_screen
+                return describe_screen()
             
             return f"Tool {tool} executed with input: {val}"
 

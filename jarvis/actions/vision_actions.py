@@ -43,7 +43,7 @@ _face_manager = None
 _yolo_detector = None
 _scene_descriptor = None
 _emotion_detector = None
-_ocr_reader = None
+_ocr_engine = None
 _gesture_engine = None
 _pose_guard = None
 
@@ -88,13 +88,12 @@ def _get_emotion_detector():
         _emotion_detector = EmotionDetector()
     return _emotion_detector
 
-def _get_ocr_reader():
-    global _ocr_reader
-    if _ocr_reader is None:
-        import easyocr
-        print("Vision: Loading EasyOCR models...")
-        _ocr_reader = easyocr.Reader(['en'])
-    return _ocr_reader
+def _get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        from core.vision.ocr_engine import OCREngine
+        _ocr_engine = OCREngine()
+    return _ocr_engine
 
 def _get_gesture_engine():
     global _gesture_engine
@@ -187,54 +186,108 @@ def capture_photo(filename=None):
     return "Failed to capture frame."
 
 # ============================================================================
+# VISION ANALYSIS HELPERS
+# ============================================================================
+
+def analyze_scene(prompt="What's on the screen?", **kwargs):
+    """
+    General purpose analysis using Vision AI.
+    If 'screen' is in prompt, assumes screen capture. Otherwise, uses camera.
+    """
+    # 1. Check if this is a SCREEN request
+    if "screen" in prompt.lower():
+        import pyautogui
+        try:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screen_{timestamp}.png"
+            save_dir = os.path.join(os.getcwd(), "screenshots")
+            os.makedirs(save_dir, exist_ok=True)
+            filepath = os.path.join(save_dir, filename)
+
+            screenshot = pyautogui.screenshot()
+            screenshot_np = np.array(screenshot)
+            screenshot_cv = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(filepath, screenshot_cv)
+
+            # Use EasyOCR for screen content
+            try:
+                import easyocr
+                reader = easyocr.Reader(['en'])
+                result = reader.readtext(screenshot_cv)
+                extracted_text = " ".join([item[1] for item in result if item[1].strip()])
+                
+                return {
+                    "text": extracted_text[:1000], 
+                    "screenshot_path": filepath,
+                    "type": "screen_analysis"
+                }
+            except ImportError:
+                 # Fallback to Tesseract if EasyOCR fails
+                try:
+                    import pytesseract
+                    # Check if tesseract is in path or set it?
+                    # Assuming default for now or user has it
+                    text = pytesseract.image_to_string(screenshot_cv)
+                    return {
+                        "text": text[:1000],
+                        "screenshot_path": filepath,
+                        "type": "screen_analysis"
+                    }
+                except ImportError:
+                    return {"error": "No OCR engine available (EasyOCR/Tesseract)."}
+
+        except Exception as e:
+            return {"error": str(e)}
+    
+    # 2. Otherwise its a CAMERA request (Scene/Objects/People)
+    else:
+        # Re-use specific functions for camera analysis to keep logic clean
+        # or implement a generic camera analysis here using BLIP/YOLO
+        
+        # Determine intent from prompt
+        prompt_lower = prompt.lower()
+        
+        if "read" in prompt_lower or "text" in prompt_lower:
+            return read_text(prompt, **kwargs)
+            
+        elif "object" in prompt_lower or "detect" in prompt_lower:
+             # Inline logic from old detect_objects to avoid recursion loop if detect_objects calls this
+            frame = _get_current_frame()
+            if frame is None: return {"error": "Camera not active."}
+            detector = _get_yolo_detector()
+            results = detector.detect(frame)
+            return results
+            
+        elif "scene" in prompt or "describe" in prompt_lower:
+             # Inline logic from old describe_scene
+            frame = _get_current_frame()
+            if frame is None: return {"error": "Camera not active."}
+            descriptor = _get_scene_descriptor()
+            return descriptor.describe(frame)
+            
+        elif "people" in prompt_lower or "who" in prompt_lower:
+            # Inline logic from old identify_people
+            frame = _get_current_frame()
+            if frame is None: return {"error": "Camera not active."}
+            face_mgr = _get_face_manager()
+            results = face_mgr.recognize_faces(frame)
+            # transform results to expected dict
+            names = [r['name'] for r in results] if results else []
+            msg = f"I see {', '.join(names)}" if names else "I don't see anyone."
+            return {"type": "identify_people", "message": msg, "people": names}
+
+        return {"error": "Could not determine analysis type from prompt."}
+
+# ============================================================================
 # OBJECT DETECTION (YOLO)
 # ============================================================================
 
-def detect_objects():
+def detect_objects(**kwargs):
     """
-    Detect all objects currently visible in camera feed
-    
-    Returns:
-        dict: Objects detected with details
+    List objects visible in the camera frame.
     """
-    print("Detecting objects...")
-    
-    frame = _get_current_frame()
-    if frame is None:
-        return {"error": "Camera not active. Please open camera first."}
-    
-    detector = _get_yolo_detector()
-    results = detector.detect(frame)
-    
-    if results.get('error'):
-        return {"error": results['error']}
-    
-    # Format for natural response
-    objects = results['objects']
-    if not objects:
-        return {
-            "objects": [],
-            "count": 0,
-            "message": "I don't see any objects right now."
-        }
-    
-    # Count unique objects
-    from collections import Counter
-    object_counts = Counter(objects)
-    
-    # Create readable list
-    object_list = [f"{count} {name}{'s' if count > 1 else ''}" 
-                   for name, count in object_counts.items()]
-    
-    message = f"I can see: {', '.join(object_list)}."
-    
-    return {
-        "objects": list(object_counts.keys()),
-        "count": len(objects),
-        "details": results['details'],
-        "message": message,
-        "type": "object_detection"
-    }
+    prompt = kwargs.pop('prompt', "List the objects visible in this frame.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
 def detect_handheld_object():
     """
@@ -343,50 +396,12 @@ def object_detection():
 # FACE RECOGNITION & MEMORY
 # ============================================================================
 
-def identify_people():
+def identify_people(**kwargs):
     """
-    Identify all people visible in camera feed
-    
-    Returns:
-        dict: Recognized people
+    Identify people in the frame.
     """
-    print("Identifying people...")
-    
-    frame = _get_current_frame()
-    if frame is None:
-        return {"error": "Camera not active."}
-    
-    face_mgr = _get_face_manager()
-    results = face_mgr.recognize_faces(frame)
-    
-    if not results:
-        return {
-            "people": [],
-            "count": 0,
-            "message": "I don't see anyone right now."
-        }
-    
-    # Extract names
-    names = [r['name'] for r in results]
-    unique_names = list(set(names))
-    
-    # Create message
-    if len(unique_names) == 1 and unique_names[0] == "Unknown":
-        message = "I see a person, but I don't recognize them."
-    else:
-        known_names = [n for n in unique_names if n != "Unknown"]
-        if known_names:
-            message = f"I recognize: {', '.join(known_names)}."
-        else:
-            message = "I see people, but don't recognize anyone."
-    
-    return {
-        "people": unique_names,
-        "count": len(results),
-        "details": results,
-        "message": message,
-        "type": "identify_people"
-    }
+    prompt = kwargs.pop('prompt', "Identify the people in this frame. Who is this?")
+    return analyze_scene(prompt=prompt, **kwargs)
 
 def who_is_in_front():
     """
@@ -436,30 +451,12 @@ def face_recognition(person_name=None):
 # SCENE DESCRIPTION
 # ============================================================================
 
-def describe_scene():
+def describe_scene(**kwargs):
     """
-    Generate natural language description of what's visible
-    
-    Returns:
-        dict: Scene description
+    Describe the scene in front of the camera.
     """
-    print("Describing scene...")
-    
-    frame = _get_current_frame()
-    if frame is None:
-        return {"error": "Camera not active."}
-    
-    descriptor = _get_scene_descriptor()
-    result = descriptor.describe(frame)
-    
-    if 'error' in result:
-        return result
-    
-    return {
-        "description": result['description'],
-        "message": result['description'],
-        "type": "scene_description"
-    }
+    prompt = kwargs.pop('prompt', "Describe the scene in detail.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
 def scene_description():
     """Alias for describe_scene"""
@@ -565,35 +562,50 @@ def search_object_details(object_name=None):
 # OCR & TEXT EXTRACTION
 # ============================================================================
 
-def read_text(prompt="Read the text."):
+def read_text(prompt="Read the text.", **kwargs):
     """
-    Local OCR using EasyOCR.
+    Robust OCR using the new OCREngine.
     """
     frame = _get_current_frame()
     if frame is None:
         return {"error": "Camera not active."}
 
-    # Local OCR
     try:
-        reader = _get_ocr_reader()
-        result = reader.readtext(frame)
+        engine = _get_ocr_engine()
+        results = engine.detect_and_read(frame)
 
-        extracted_text = " ".join([item[1] for item in result if item[1].strip()])
+        extracted_text = " ".join([item['detected_text'] for item in results if item['detected_text'].strip()])
 
         if extracted_text.strip():
             return {
                 "text": extracted_text, 
+                "details": results,
                 "message": f"I extracted the following text: {extracted_text}",
                 "type": "ocr_result"
             }
         else:
+            # SAVE DEBUG FRAME
+            debug_path = os.path.join(os.getcwd(), "debug_ocr_failed.jpg")
+            cv2.imwrite(debug_path, frame)
             return {
                 "text": "No text detected.",
-                "message": "I couldn't identify any clear text in the frame, Sir.",
+                "message": f"I couldn't identify any clear text. I've saved the camera view to {debug_path} for inspection.",
                 "type": "ocr_result"
             }
     except Exception as e:
-        return {"error": f"Local OCR failed: {str(e)}"}
+        return {"error": f"OCR Engine failed: {str(e)}"}
+
+def read_text_from_frame(frame):
+    """
+    Detect and read text from a specific frame.
+    Returns: JSON structured output as a string.
+    """
+    try:
+        engine = _get_ocr_engine()
+        return engine.read_text_from_frame(frame)
+    except Exception as e:
+        import json
+        return json.dumps({"error": str(e)})
 
 def ocr_extract_text(image_path=None):
     """Legacy Tesseract OCR (kept for speed if needed)"""
@@ -619,55 +631,29 @@ def ocr_extract_text(image_path=None):
 # SCREEN ANALYSIS (LLM Vision)
 # ============================================================================
 
-def analyze_screen(prompt="What's on the screen?"):
-    """
-    Capture and analyze screen using local OCR and metadata.
-    """
-    import pyautogui
-    try:
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"screen_{timestamp}.png"
-        save_dir = os.path.join(os.getcwd(), "screenshots")
-        os.makedirs(save_dir, exist_ok=True)
-        filepath = os.path.join(save_dir, filename)
+# ============================================================================
+# SCREEN ANALYSIS HELPERS
+# ============================================================================
 
-        screenshot = pyautogui.screenshot()
-        screenshot_np = np.array(screenshot)
-        screenshot_cv = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(filepath, screenshot_cv)
-
-        # Use EasyOCR for screen content
-        try:
-            import easyocr
-            reader = easyocr.Reader(['en'])
-            result = reader.readtext(screenshot_cv)
-            extracted_text = " ".join([item[1] for item in result if item[1].strip()])
-            
-            return {
-                "text": extracted_text[:1000], 
-                "screenshot_path": filepath,
-                "type": "screen_analysis"
-            }
-        except ImportError:
-            return {"error": "EasyOCR not installed."}
-    except Exception as e:
-        return {"error": str(e)}
-
-def read_screen():
+def read_screen(**kwargs):
     """Extract all text from screen"""
-    return analyze_screen("Extract all text visible on this screen.")
+    prompt = kwargs.pop('prompt', "Extract all text visible on this screen.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
-def describe_screen():
+def describe_screen(**kwargs):
     """Describe what's on the screen"""
-    return analyze_screen("Describe what you see on this screen in detail.")
+    prompt = kwargs.pop('prompt', "Describe what you see on this screen in detail.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
-def identify_ui_elements():
+def identify_ui_elements(**kwargs):
     """Identify clickable UI elements"""
-    return analyze_screen("Identify all clickable UI elements (buttons, links, inputs).")
+    prompt = kwargs.pop('prompt', "Identify all clickable UI elements (buttons, links, inputs) on the screen.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
-def analyze_error():
+def analyze_error(**kwargs):
     """Analyze errors on screen"""
-    return analyze_screen("Look for error messages and suggest fixes.")
+    prompt = kwargs.pop('prompt', "Look for error messages on the screen and suggest fixes.")
+    return analyze_scene(prompt=prompt, **kwargs)
 
 # ============================================================================
 # ADDITIONAL VISION MODES

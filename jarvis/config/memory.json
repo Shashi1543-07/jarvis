@@ -45,8 +45,8 @@
     },
     "working_memory": [
         {
-            "entity": "It",
-            "timestamp": "2026-01-22T17:02:12.259702"
+            "entity": "Can",
+            "timestamp": "2026-02-02T00:02:00.927002"
         }
     ],
     "episodic_memory": [
@@ -71,6 +71,12 @@
         {
             "date": "2026-01-22T17:10:38.542661",
             "summary": "Interaction highlights: User: It's our best.\nAI: Shashi, it’s a good one. It’s currently unavailable in my memory context.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-02T00:21:54.290493",
+            "summary": "Interaction highlights: User: Can you tell me what is written on book?\nAI: I don’t have the information about the book’s text at this moment.\n\nMood: positive",
             "mood": "positive",
             "importance": 1.0
         }
@@ -191,12 +197,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-01-24T11:22:01.604267"
+        "last_analysis": "2026-02-02T00:04:19.087342"
     },
     "conversation_patterns": {
         "other": 42,
         "question": 9,
-        "statement": 20
+        "statement": 21
     },
     "relationships": {
         "John": {
@@ -231,20 +237,24 @@
         "Active during 22:00 with general activities": {
             "frequency": "routine",
             "last_recorded": "2026-01-19T22:00:10.927177"
+        },
+        "Active during 0:00 with learning activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-02T00:03:58.489202"
         }
     },
     "interests": [
-        "pizza and italian food",
-        "programming",
-        "pizza",
-        "ai",
         "it.",
+        "programming",
         "memory.json,",
         "to",
-        "pizza?",
+        "pizza",
+        "ai",
         "technology",
-        "it",
-        "to know if you could see it"
+        "pizza?",
+        "pizza and italian food",
+        "to know if you could see it",
+        "it"
     ],
     "favorites": {
         "music": [
