@@ -44,8 +44,15 @@ class Router:
 
     def _cleanup_on_exit(self):
         """Cleanup function called when the program exits"""
+        print("Router: Cleaning up resources...")
         if hasattr(self, 'memory'):
             self.memory.prepare_for_exit()
+        
+        # Ensure Vision resources are released
+        try:
+            vision_actions.close_camera()
+        except:
+            pass
 
     def _build_action_map(self):
         modules = [
@@ -80,6 +87,10 @@ class Router:
             "VISION_DESCRIBE": vision_actions.describe_scene,
             "VISION_OBJECTS": vision_actions.detect_objects,
             "VISION_PEOPLE": vision_actions.identify_people,
+            "VISION_REPAIR": vision_actions.repair_vision_system,
+            "VISION_LEARN_FACE": vision_actions.finalize_face_learning,
+            "VISION_CLOSE": vision_actions.close_camera,
+            "ADVANCED_SCENE_ANALYSIS": vision_actions.get_scene_context,
             "SCREEN_OCR": vision_actions.read_screen,
             "SCREEN_DESCRIBE": vision_actions.describe_screen,
         }
@@ -167,7 +178,16 @@ class Router:
             
             # CHECK FOR NEW INTENT STRUCTURE WITH SLOTS
             if "intent" in response_data and "slots" in response_data:
-                return self._handle_intent_object(response_data)
+                res = self._handle_intent_object(response_data)
+                
+                # Check if this intent result needs a second turn (summarization)
+                # 'res' here might be the result of _execute_intent
+                if isinstance(res, dict) and res.get("needs_summary"):
+                    print("Generating conversational response for complex Intent result...")
+                    final_reply = self.brain.process_action_results(text, [{"action": res["action"], "result": res["result"]}])
+                    self.memory.remember_conversation(text, final_reply)
+                    return {"text": final_reply}
+                return res
                     
         except json.JSONDecodeError:
             print(f"Error parsing JSON: {llm_response}")
@@ -290,16 +310,30 @@ class Router:
             func = self.intent_map[intent_type]
             try:
                 # Dynamic execution
-                # We need to map slots to function arguments intelligently
-                # For now, simplistic mapping: pass slots as kwargs
                 kwargs = {**slots}
                 if "original_text" in intent_data:
-                    # Provide original text so handlers can extract tricky params themselves
                     kwargs["text"] = intent_data["original_text"]
                 
                 print(f"Executing Intent {intent_type} with slots {slots}")
                 res = func(**kwargs)
-                return {"text": str(res), "action": intent_type}
+                
+                # Determine if we need to return a technical dict or a spoken message
+                message = ""
+                if isinstance(res, dict):
+                    message = res.get("message") or res.get("text") or str(res)
+                else:
+                    message = str(res)
+
+                # Flag for Router.route to know if this needs a 2nd turn
+                data_intensive = ["VISION_OCR", "VISION_DESCRIBE", "VISION_OBJECTS", "VISION_PEOPLE", "SCREEN_OCR", "SCREEN_DESCRIBE"]
+                needs_summary = intent_type in data_intensive or (isinstance(res, dict) and len(str(res)) > 100)
+
+                return {
+                    "text": message, 
+                    "action": intent_type,
+                    "result": res,
+                    "needs_summary": needs_summary
+                }
             except Exception as e:
                 print(f"Error executing intent {intent_type}: {e}")
                 return {"text": f"Error executing command: {e}", "action": "error"}
@@ -307,7 +341,8 @@ class Router:
         if "text" in intent_data:
             return {"text": intent_data["text"], "action": "speak"}
             
-        return {"text": "I understood the intent but don't have a handler for it yet.", "action": "speak"}        
+        return {"text": "I understood the intent but don't have a handler for it yet.", "action": "speak"}
+        
 
     def _log_action(self, action, params, result):
         try:

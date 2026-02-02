@@ -15,7 +15,7 @@ from core.vision.face_manager import FaceManager
 from core.vision.yolo_detector import YOLODetector
 from core.vision.scene_description import SceneDescriptor
 from core.vision.emotion_detector import EmotionDetector
-from core.vision.internet_search import search_object_info, search_and_summarize
+from core.vision.vision_manager import get_vision_manager
 
 # Import camera utilities
 from vision.utils import get_camera
@@ -57,7 +57,17 @@ _vision_state = {
     "latest_summary": "Nothing detected yet.",
     "latest_gesture": {"success": False, "gesture": "None"},
     "last_update_time": 0,
-    "history": [] # List of (timestamp, summary) tuples
+    "history": [], # List of (timestamp, summary) tuples
+    "object_stability": {}, # {obj_name: count} tracking
+    "stability_threshold": 3 # Frames required to confirm
+}
+
+# State for proactive face learning
+_face_learning_state = {
+    "last_request_time": 0,
+    "pending_name": False,
+    "current_unknown_face": None, # Stored frame for learning
+    "cooldown": 300, # 5 minutes cooldown between "who are you" requests
 }
 
 def _get_face_manager():
@@ -115,14 +125,28 @@ def _get_pose_guard():
 
 def open_camera(camera_id=0):
     """
-    Turn on webcam with live feed
+    Turn on webcam with live feed using Intelligent Vision Manager.
     
     Returns:
-        str: Status message
+        str: Status message with camera type
     """
-    print(f"Opening camera {camera_id}...")
-    _start_vision_thread()
-    return f"Camera is now active. I can see the world, sir."
+    vm = get_vision_manager()
+    print("Requesting Vision Access...")
+    
+    # Attempt to open vision (this handles priority selection)
+    result = vm.open_vision()
+    
+    if result["success"]:
+        # Start the thread if not already running
+        _start_vision_thread()
+        
+        # customized feedback based on camera type
+        if "external" in result.get("camera_type", ""):
+            return "Using external vision module."
+        else:
+            return "Using internal camera."
+    
+    return "I don't have access to any visual sensors right now."
 
 def close_camera():
     """
@@ -136,14 +160,18 @@ def close_camera():
     _vision_state["active_modes"].clear()
     
     if _vision_state["thread"]:
-        _vision_state["thread"].join(timeout=2)
+        # Don't join with timeout if called from within thread (avoid deadlock)
+        if threading.current_thread() != _vision_state["thread"]:
+            _vision_state["thread"].join(timeout=2)
         _vision_state["thread"] = None
     
-    # Force close camera
-    cam = get_camera()
-    cam.close_camera()
+    # Force close camera via Vision Manager
+    vm = get_vision_manager()
+    vm.close_vision()
     
-    return "Camera closed, sir."
+    cv2.destroyAllWindows()
+    
+    return "Camera closed, sir. My eyes are shut."
 
 def capture_photo(filename=None):
     """
@@ -189,14 +217,72 @@ def capture_photo(filename=None):
 # VISION ANALYSIS HELPERS
 # ============================================================================
 
-def analyze_scene(prompt="What's on the screen?", **kwargs):
+def _smart_vision_route(prompt, original_intent):
+    """
+    Heuristic to fix common LLM misclassifications for Vision.
+    Redirects 'Can you see...' -> Object Detection + Description.
+    """
+    prompt_lower = prompt.lower()
+    
+    # SANITIZE HALLUCINATIONS: "Read the book header" is a known hallucination from bad examples.
+    if "book header" in prompt_lower or "header" in prompt_lower and len(prompt_lower) < 25:
+        print(f"SmartRoute: Sanitizing hallucinated prompt info: '{prompt}'")
+        prompt = "General scene analysis"
+        prompt_lower = prompt.lower()
+
+    # PROBLEM 1 FIX: "Can you see?" or "Can you even see?" check.
+    patterns = ["can you see", "is there a", "do you see", "are there", "can you even see"]
+    if any(pattern in prompt_lower for pattern in patterns):
+        # Unless they specifically asked for text
+        if not any(verify in prompt_lower for verify in ["read", "what is written", "ocr"]):
+             print(f"SmartRoute: Providing comprehensive visibility check for '{prompt}'")
+             frame = _get_current_frame()
+             if frame is None: return {"error": "Camera not active."}
+             
+             detector = _get_yolo_detector()
+             descriptor = _get_scene_descriptor()
+             
+             yolo_results = detector.detect(frame)
+             scene_results = descriptor.describe(frame)
+             
+             # Format a combined message
+             main_desc = scene_results.get('description', "I'm looking at the scene.")
+             obj_list = yolo_results.get('objects', [])
+             obj_count = len(obj_list)
+             
+             message = f"Yes, I can see. {main_desc}"
+             if obj_count > 0:
+                 message += f" I can detect {obj_count} objects including {', '.join(obj_list[:3])}."
+             
+             return {
+                 "type": "visibility_check",
+                 "objects": obj_list,
+                 "description": main_desc,
+                 "message": message
+             }
+             
+    return None
+
+def analyze_scene(prompt="What do you see?", **kwargs):
     """
     General purpose analysis using Vision AI.
-    If 'screen' is in prompt, assumes screen capture. Otherwise, uses camera.
     """
+    # 0. Robust Prompt Extraction (handle various slot names from LLM)
+    if not prompt or prompt == "What do you see?":
+        prompt = kwargs.get('prompt') or kwargs.get('content') or kwargs.get('query') or "What do you see?"
+    
+    # If the prompt is still just the default or very short, treat as generic
+    if not prompt or len(prompt) < 3 or "book header" in prompt.lower():
+        prompt = "Describe what you see in front of you."
+
+    prompt_lower = prompt.lower()
+    
+    # Check Smart Route First
+    redirect = _smart_vision_route(prompt, "ANALYZE_SCENE")
+    if redirect: return redirect
+
     # 1. Check if this is a SCREEN request
-    if "screen" in prompt.lower():
-        import pyautogui
+    if "screen" in prompt_lower:
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screen_{timestamp}.png"
@@ -209,74 +295,81 @@ def analyze_scene(prompt="What's on the screen?", **kwargs):
             screenshot_cv = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
             cv2.imwrite(filepath, screenshot_cv)
 
-            # Use EasyOCR for screen content
+            # Use OCREngine for screen content
             try:
-                import easyocr
-                reader = easyocr.Reader(['en'])
-                result = reader.readtext(screenshot_cv)
-                extracted_text = " ".join([item[1] for item in result if item[1].strip()])
+                engine = _get_ocr_engine()
+                results = engine.detect_and_read(screenshot_cv)
+                extracted_text = " ".join([item['detected_text'] for item in results if item['detected_text'].strip()])
                 
                 return {
                     "text": extracted_text[:1000], 
                     "screenshot_path": filepath,
-                    "type": "screen_analysis"
+                    "type": "screen_analysis",
+                    "message": f"Screen analysis complete. I found the following text: {extracted_text[:200]}"
                 }
-            except ImportError:
-                 # Fallback to Tesseract if EasyOCR fails
-                try:
-                    import pytesseract
-                    # Check if tesseract is in path or set it?
-                    # Assuming default for now or user has it
-                    text = pytesseract.image_to_string(screenshot_cv)
-                    return {
-                        "text": text[:1000],
-                        "screenshot_path": filepath,
-                        "type": "screen_analysis"
-                    }
-                except ImportError:
-                    return {"error": "No OCR engine available (EasyOCR/Tesseract)."}
+            except Exception as e:
+                return {"error": f"OCR failed during screen analysis: {e}"}
 
         except Exception as e:
             return {"error": str(e)}
-    
+
     # 2. Otherwise its a CAMERA request (Scene/Objects/People)
     else:
-        # Re-use specific functions for camera analysis to keep logic clean
-        # or implement a generic camera analysis here using BLIP/YOLO
-        
         # Determine intent from prompt
-        prompt_lower = prompt.lower()
-        
-        if "read" in prompt_lower or "text" in prompt_lower:
+        if "read" in prompt_lower or "text" in prompt_lower or "written" in prompt_lower:
             return read_text(prompt, **kwargs)
             
         elif "object" in prompt_lower or "detect" in prompt_lower:
-             # Inline logic from old detect_objects to avoid recursion loop if detect_objects calls this
             frame = _get_current_frame()
             if frame is None: return {"error": "Camera not active."}
             detector = _get_yolo_detector()
-            results = detector.detect(frame)
-            return results
-            
-        elif "scene" in prompt or "describe" in prompt_lower:
-             # Inline logic from old describe_scene
-            frame = _get_current_frame()
-            if frame is None: return {"error": "Camera not active."}
-            descriptor = _get_scene_descriptor()
-            return descriptor.describe(frame)
+            return detector.detect(frame)
             
         elif "people" in prompt_lower or "who" in prompt_lower:
-            # Inline logic from old identify_people
             frame = _get_current_frame()
             if frame is None: return {"error": "Camera not active."}
             face_mgr = _get_face_manager()
             results = face_mgr.recognize_faces(frame)
-            # transform results to expected dict
             names = [r['name'] for r in results] if results else []
             msg = f"I see {', '.join(names)}" if names else "I don't see anyone."
             return {"type": "identify_people", "message": msg, "people": names}
 
-        return {"error": "Could not determine analysis type from prompt."}
+        # DEFAULT: Generic Scene Description + Potential Auto-OCR
+        frame = _get_current_frame()
+        if frame is None: return {"error": "Camera not active."}
+        
+        # YOLO first to see if we should trigger OCR
+        detector = _get_yolo_detector()
+        yolo_results = detector.detect(frame)
+        objects = yolo_results.get('objects', [])
+        
+        # If we see a "book", "cell phone", "laptop", or "bottle" -> Trigger OCR automatically!
+        text_containers = ["book", "cell phone", "laptop", "bottle", "keyboard", "clock"]
+        has_text_container = any(obj in text_containers for obj in objects)
+        
+        ocr_result = None
+        if has_text_container:
+            print(f"Auto-OCR: Detected text-carrying object ({objects}), running OCR...")
+            ocr_result = read_text(prompt="Generic Scan", **kwargs)
+
+        # Final Scene Descriptor
+        descriptor = _get_scene_descriptor()
+        scene_result = descriptor.describe(frame)
+        
+        # Combine
+        combined_data = {
+            "type": "complex_scene_analysis",
+            "description": scene_result.get('description', ""),
+            "objects": objects,
+            "ocr": ocr_result.get('text') if ocr_result and isinstance(ocr_result, dict) else None
+        }
+        
+        message = scene_result.get('description', "I'm looking at the scene.")
+        if ocr_result and isinstance(ocr_result, dict) and ocr_result.get('text'):
+             message += f" I also noticed some text: '{ocr_result.get('text')}'."
+        
+        combined_data["message"] = message
+        return combined_data
 
 # ============================================================================
 # OBJECT DETECTION (YOLO)
@@ -430,7 +523,28 @@ def remember_face(name):
     
     face_mgr = _get_face_manager()
     result = face_mgr.learn_face(frame, name)
+    return result
+
+def finalize_face_learning(name, **kwargs):
+    """
+    Finalize the proactive face learning process once a name is provided.
+    """
+    global _face_learning_state
     
+    if not _face_learning_state["pending_name"] or _face_learning_state["current_unknown_face"] is None:
+        return {"error": "No pending face learning request found."}
+    
+    frame = _face_learning_state["current_unknown_face"]
+    face_mgr = _get_face_manager()
+    
+    print(f"Vision: Finalizing learning for {name}...")
+    result = face_mgr.learn_face(frame, name)
+    
+    if result.get("success"):
+        _face_learning_state["pending_name"] = False
+        _face_learning_state["current_unknown_face"] = None
+        # Don't reset last_request_time to keep the cooldown active
+        
     return result
 
 def face_recognition(person_name=None):
@@ -461,6 +575,28 @@ def describe_scene(**kwargs):
 def scene_description():
     """Alias for describe_scene"""
     return describe_scene()
+
+def get_scene_context(**kwargs):
+    """
+    Advanced semantic scene understanding.
+    Fuses object detection, BLIP, and heuristics.
+    """
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
+    
+    detector = _get_yolo_detector()
+    descriptor = _get_scene_descriptor()
+    
+    # 1. Get objects
+    yolo_res = detector.detect(frame)
+    objects = yolo_res.get('objects', [])
+    
+    # 2. Get fused context
+    context = descriptor.get_semantic_context(frame, objects)
+    
+    print(f"Vision: Semantic Context - {context['scene_type']}")
+    return context
 
 # ============================================================================
 # EMOTION RECOGNITION
@@ -562,38 +698,129 @@ def search_object_details(object_name=None):
 # OCR & TEXT EXTRACTION
 # ============================================================================
 
+# Already handled by top analyze_scene
+
 def read_text(prompt="Read the text.", **kwargs):
     """
     Robust OCR using the new OCREngine.
+    Pauses other vision tasks to ensure full resource availability for OCR.
     """
-    frame = _get_current_frame()
-    if frame is None:
-        return {"error": "Camera not active."}
+    # 1. Manage Vision State (Pause Conflicts)
+    previous_modes = _vision_state["active_modes"].copy()
+    if "object_detection" in _vision_state["active_modes"]:
+        _vision_state["active_modes"].remove("object_detection")
+        
+    print("OCR: Pausing other vision modes for dedicated Text Analysis...")
+    time.sleep(0.5) 
 
     try:
-        engine = _get_ocr_engine()
-        results = engine.detect_and_read(frame)
+        vm = get_vision_manager()
+        
+        # 2. Capture Stable Frame
+        print("OCR: Capturing stable frame for text...")
+        frame = vm.get_stable_frame(sample_count=8) 
+        
+        if frame is None:
+            _vision_state["active_modes"] = previous_modes
+            return {"error": "Camera not active."}
 
-        extracted_text = " ".join([item['detected_text'] for item in results if item['detected_text'].strip()])
+        # 3. Process
+        engine = _get_ocr_engine()
+        if not engine._easyocr_available and not engine._tesseract_available:
+             _vision_state["active_modes"] = previous_modes
+             return {
+                 "error": "OCR Core missing.",
+                 "message": "I cannot read text because my OCR engines (EasyOCR/Tesseract) are not properly installed. Please ask me to 'repair vision cores' to fix this.",
+                 "type": "error"
+             }
+             
+        results = engine.detect_and_read(frame)
+        
+        # 4. Filter & Confidence Check (Max Sensitivity: 0.25)
+        valid_texts = []
+        for item in results:
+            # More permissive threshold (0.25 instead of 0.35)
+            if item.get('confidence', 0) > 0.25 and len(item.get('detected_text', '')) >= 1:
+                valid_texts.append(item['detected_text'])
+                
+        extracted_text = " ".join(valid_texts)
+
+        # Restore state
+        _vision_state["active_modes"] = previous_modes
 
         if extracted_text.strip():
             return {
                 "text": extracted_text, 
                 "details": results,
-                "message": f"I extracted the following text: {extracted_text}",
+                "message": f"I read: {extracted_text}",
                 "type": "ocr_result"
             }
+        elif len(results) > 0: 
+            # We found text but it was low confidence
+            msg = "I detect some text, but it's too blurry or faint to read. Please improve the lighting, hold the paper steadier, or bring it slightly closer to the lens."
+            return {
+                "text": "Unclear text.", 
+                "message": msg,
+                "type": "ocr_result_low_conf"
+            }
         else:
-            # SAVE DEBUG FRAME
-            debug_path = os.path.join(os.getcwd(), "debug_ocr_failed.jpg")
-            cv2.imwrite(debug_path, frame)
             return {
                 "text": "No text detected.",
-                "message": f"I couldn't identify any clear text. I've saved the camera view to {debug_path} for inspection.",
+                "message": "I don't see any readable text. Try aligning the paper with the center of my vision and ensuring good lighting.",
                 "type": "ocr_result"
             }
     except Exception as e:
+        _vision_state["active_modes"] = previous_modes
+        print(f"OCR Critical Failure: {e}")
         return {"error": f"OCR Engine failed: {str(e)}"}
+
+def repair_vision_system(**kwargs):
+    """
+    Force reset and re-initialization of all vision engines.
+    Use this when Jarvis says he can't read but the camera is physically working.
+    """
+    global _ocr_engine, _yolo_detector, _scene_descriptor, _face_manager
+    
+    print("VISION REPAIR: Wiping engine instances and re-initializing environment...")
+    _ocr_engine = None
+    _yolo_detector = None
+    _scene_descriptor = None
+    _face_manager = None
+    
+    # Re-initialize OCR
+    try:
+        engine = _get_ocr_engine()
+        if engine._easyocr_available:
+            msg = "Vision Cores re-initialized successfully. I can see clearly now."
+        else:
+            msg = "Vision Cores reset, but the underlying libraries (EasyOCR/Tesseract) still fail to load. Please check your console for errors."
+            
+        return {
+            "success": engine._easyocr_available,
+            "message": msg,
+            "type": "vision_repair"
+        }
+    except Exception as e:
+        return {"error": str(e), "message": f"Repair failed: {e}"}
+
+def recall_vision_memory(query=None, **kwargs):
+    """
+    Recall text or objects seen recently.
+    
+    Args:
+        query: Optional text to filter memory (e.g. "recipe", "password")
+    """
+    engine = _get_ocr_engine()
+    mem_results = engine.recall_recent(query)
+    
+    if not mem_results:
+        return "I haven't seen any text matching that recently."
+    
+    # Format the most recent one
+    top = mem_results[0]
+    ago = int(time.time() - top['timestamp'])
+    
+    return f"I remember seeing '{top['text']}' about {ago} seconds ago."
 
 def read_text_from_frame(frame):
     """
@@ -617,13 +844,17 @@ def ocr_extract_text(image_path=None):
         if frame is None:
             return "Camera not active."
         
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        text = pytesseract.image_to_string(gray)
+        # Use new engine even for legacy call
+        engine = _get_ocr_engine()
+        results = engine.detect_and_read(frame)
+        text = " ".join([r['detected_text'] for r in results])
         return f"Extracted text: {text}"
     else:
         if os.path.exists(image_path):
             img = cv2.imread(image_path)
-            text = pytesseract.image_to_string(img)
+            engine = _get_ocr_engine()
+            results = engine.detect_and_read(img)
+            text = " ".join([r['detected_text'] for r in results])
             return f"Extracted text: {text}"
         return "File not found."
 
@@ -744,7 +975,9 @@ def _vision_loop():
     while _vision_state["running"]:
         frame = cam.get_frame()
         if frame is None:
-            time.sleep(0.1)
+            # Check if we should stop even if frame is none (to prevent hung thread)
+            if not _vision_state["running"]: break
+            time.sleep(0.05)
             continue
         
         # Cache frame for queries
@@ -753,24 +986,54 @@ def _vision_loop():
         display_frame = frame.copy()
         modes = _vision_state["active_modes"].copy()
         
-        # Object Detection & Summary (Always run for global context if camera is offline)
+        # Object Detection & Summary
         if yolo is None:
             yolo = _get_yolo_detector()
         
-        # We only draw if mode is active, but we always detect for the brain
         detect_res = yolo.detect(frame)
-        if detect_res.get('objects'):
+        current_objects = set(detect_res.get('objects', []))
+        
+        # Temporal Stability Filtering
+        stable_objects = []
+        for obj in current_objects:
+            _vision_state["object_stability"][obj] = _vision_state["object_stability"].get(obj, 0) + 1
+            if _vision_state["object_stability"][obj] >= _vision_state["stability_threshold"]:
+                stable_objects.append(obj)
+        
+        # Cleanup stability for missing objects
+        for obj in list(_vision_state["object_stability"].keys()):
+            if obj not in current_objects:
+                _vision_state["object_stability"][obj] -= 1
+                if _vision_state["object_stability"][obj] <= 0:
+                    del _vision_state["object_stability"][obj]
+
+        if stable_objects:
             from collections import Counter
-            counts = Counter(detect_res['objects'])
+            counts = Counter(stable_objects)
             summary = ", ".join([f"{v} {k}" for k, v in counts.items()])
-            _vision_state["latest_summary"] = f"Visible: {summary}"
             
-            # Update history every 10 seconds or if major change
+            # Periodic semantic summary (every 10s)
             now = time.time()
             if now - _vision_state["last_update_time"] > 10:
-                _vision_state["history"].append((datetime.datetime.now(), summary))
+                descriptor = _get_scene_descriptor()
+                context = descriptor.get_semantic_context(frame, stable_objects)
+                
+                # Deep Verification: If a "cat" or "dog" is detected but confidence is on edge, verify with BLIP
+                if "cat" in stable_objects or "dog" in stable_objects:
+                    vqa = descriptor.answer_question(frame, "Is there a cat or dog here?")
+                    if "no" in vqa['answer'].lower():
+                        print(f"Vision: Deep Verification filtered out false positive.")
+                        _vision_state["latest_summary"] = "I'm not entirely sure, but I see shapes that look like objects."
+                    else:
+                        _vision_state["latest_summary"] = context['summary']
+                else:
+                    _vision_state["latest_summary"] = context['summary']
+                
+                _vision_state["history"].append((datetime.datetime.now(), _vision_state["latest_summary"]))
                 if len(_vision_state["history"]) > 50: _vision_state["history"].pop(0)
                 _vision_state["last_update_time"] = now
+            else:
+                _vision_state["latest_summary"] = f"Visible: {summary}"
         else:
             _vision_state["latest_summary"] = "Nothing of interest detected."
 
@@ -792,6 +1055,16 @@ def _vision_loop():
                 cv2.rectangle(display_frame, (l, t), (r, b), color, 2)
                 cv2.putText(display_frame, f"{name} ({conf:.2f})", (l, t-10),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                
+                # Proactive Learning Check
+                if name == "Unknown" and result['quality']['is_good']:
+                    now = time.time()
+                    if now - _face_learning_state["last_request_time"] > _face_learning_state["cooldown"] and not _face_learning_state["pending_name"]:
+                         print(f"Vision: Detected high-quality unknown face. Quality: {result['quality']['sharpness']:.1f}")
+                         _vision_state["latest_summary"] = "I see an unknown person with clear visibility. I should ask for their name to remember them."
+                         _face_learning_state["current_unknown_face"] = frame.copy()
+                         _face_learning_state["pending_name"] = True
+                         _face_learning_state["last_request_time"] = now
         
         # Emotion Detection
         if "emotion_detection" in modes:
@@ -844,8 +1117,17 @@ def _vision_loop():
         cv2.imshow("Jarvis Vision", display_frame)
         
         # Handle window close or 'q' press
+        try:
+            if cv2.getWindowProperty("Jarvis Vision", cv2.WND_PROP_VISIBLE) < 1:
+                _vision_state["running"] = False
+                break
+        except:
+            # Window might already be destroyed
+            pass
+            
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('q') or cv2.getWindowProperty("Jarvis Vision", cv2.WND_PROP_VISIBLE) < 1:
+        if key == ord('q'):
+            _vision_state["running"] = False
             break
     
     # Cleanup

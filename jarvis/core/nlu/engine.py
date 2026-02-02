@@ -32,6 +32,10 @@ class NLUEngine:
             (r"(?:describe|what do|what's|whats|what is|analyze)(?:\s+(?:you|the|visible|in front|of|me|this)){0,5}\s+(?:see|visible|happening|in front|at|scene|around)", IntentType.VISION_DESCRIBE, lambda m: {}),
             (r"(?:detect|find|what|list)(?:\s+(?:all|the|some|visible|any)){0,3}\s+(?:objects|things|items)(?:\s+(?:there|in front|visible|of me|here)){0,4}", IntentType.VISION_OBJECTS, lambda m: {}),
             (r"(?:who|identify|recognize)(?:\s+(?:is |are |this |the )){0,3}(?:people|person|one|individual)(?:\s+(?:there|in front|visible|here)){0,4}", IntentType.VISION_PEOPLE, lambda m: {}),
+            (r"(?:repair|fix|reset|restart)(?:\s+(?:the|your|my)){0,2}\s+(?:vision|eyes|ocr|camera|sight)", IntentType.VISION_REPAIR, lambda m: {}),
+            (r"(?:i am|my name is|remember me as|this is)\s+(.+)", IntentType.VISION_LEARN_FACE, lambda m: {"name": clean_slot(m.group(1))}),
+            (r"(?:close|stop|shut|turn off|disable)(?:\s+(?:the|your)){0,2}\s+(?:camera|vision|eyes|sight|looking)", IntentType.VISION_CLOSE, lambda m: {}),
+            (r"(?:analyze|describe|understand|tell me about)(?:\s+(?:the|this)){0,2}\s+(?:scene|environment|room|context)", IntentType.ADVANCED_SCENE_ANALYSIS, lambda m: {}),
         ]
 
     def parse(self, text: str, context: Optional[str] = None) -> Intent:
@@ -94,20 +98,23 @@ class NLUEngine:
             "   - Slot: 'query' (what to look for)\n"
             "- MEMORY_FORGET: User asks to forget something.\n"
             "   - Slot: 'content' (what to forget)\n"
-            "- VISION_OCR: Read text from camera/eyes ('read what you see', 'what does it say').\n"
-            "   - Slot: 'prompt' (e.g. 'Read the book header')\n"
-            "- VISION_DESCRIBE: Describe scene or objects ('what do you see', 'describe this').\n"
-            "- VISION_OBJECTS: List objects ('what objects are there').\n"
-            "- VISION_PEOPLE: Identify people ('who are you looking at').\n"
-            "- SCREEN_OCR: Read text from the laptop screen ('read the screen', 'what's on my display').\n"
-            "- SCREEN_DESCRIBE: Describe screen content.\n"
+            "- VISION_OCR: Read text from camera/eyes. Use for queries like 'read what you see', 'what does it say', 'read this'.\n"
+            "   - Slot: 'prompt' (Description of WHAT to read if specified, e.g. 'the title', or keep empty for 'read all')\n"
+            "- VISION_DESCRIBE: Describe scene or visual context. Use for 'what do you see', 'describe this', 'tell me about this scene', 'can you see?'.\n"
+            "- VISION_OBJECTS: List or count specific objects. Use for 'what objects are there', 'identify things', 'is there a book?'.\n"
+            "- VISION_PEOPLE: Identify people in view. Use for 'who are you looking at', 'who is this'.\n"
+            "- VISION_CLOSE: Stop the vision system and close camera window. Use for 'close eyes', 'stop camera'.\n"
+            "- ADVANCED_SCENE_ANALYSIS: Deep context understanding. Use for 'where am I', 'analyze this scene', 'describe environment'.\n"
             "- TASK_MANAGEMENT, KNOWLEDGE_QUERY, CONVERSATION, CLARIFICATION_REQUIRED\n"
+            "\n"
+            "- VISION_OCR, VISION_DESCRIBE, VISION_OBJECTS, VISION_PEOPLE, SCREEN_OCR, SCREEN_DESCRIBE\n"
+            "   - Slot: 'prompt' (Describe what you want me to do or look for, e.g. 'the book', 'the man', 'the error')\n"
             "\n"
             "Response Format:\n"
             "{\n"
             "  \"intent\": \"INTENT_NAME\",\n"
             "  \"confidence\": 0.0-1.0,\n"
-            "  \"slots\": { \"content\": \"...\", \"query\": \"...\", \"app_name\": \"...\", \"command\": \"...\" },\n"
+            "  \"slots\": { \"prompt\": \"...\", \"app_name\": \"...\", \"command\": \"...\", \"content\": \"...\", \"query\": \"...\" },\n"
             "  \"requires_confirmation\": boolean,\n"
             "  \"clarification_question\": \"string or null\"\n"
             "}\n"

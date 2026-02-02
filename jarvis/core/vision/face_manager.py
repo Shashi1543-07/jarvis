@@ -105,6 +105,56 @@ class FaceManager:
         except Exception as e:
             print(f"[FaceManager] Failed to save cache: {e}")
     
+    def evaluate_face_quality(self, frame, location):
+        """
+        Evaluate if a face in the frame is of good quality for learning.
+        
+        Args:
+            frame: OpenCV BGR frame
+            location: Tuple of (top, right, bottom, left)
+            
+        Returns:
+            dict: {is_good: bool, reason: str, sharpness: float, size: tuple}
+        """
+        top, right, bottom, left = location
+        w = right - left
+        h = bottom - top
+        
+        # 1. Check size (Minimum 80x80)
+        if w < 80 or h < 80:
+            return {
+                "is_good": False,
+                "reason": f"Face too small ({w}x{h}). Please come closer.",
+                "sharpness": 0,
+                "size": (w, h)
+            }
+        
+        # 2. Check sharpness (Variance of Laplacian)
+        try:
+            face_img = frame[top:bottom, left:right]
+            gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+            sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+            
+            # Threshold for "Good" sharpness is around 100 on average cameras
+            is_sharp = sharpness > 100
+            
+            if not is_sharp:
+                return {
+                    "is_good": False,
+                    "reason": f"Image blurry ({sharpness:.1f}). Please stay still.",
+                    "sharpness": sharpness,
+                    "size": (w, h)
+                }
+                
+            return {
+                "is_good": True,
+                "reason": "Good quality.",
+                "sharpness": sharpness,
+                "size": (w, h)
+            }
+        except Exception as e:
+            return {"is_good": False, "reason": str(e), "sharpness": 0, "size": (w, h)}
+
     def recognize_faces(self, frame):
         """
         Recognize faces in a frame
@@ -113,11 +163,8 @@ class FaceManager:
             frame: OpenCV BGR frame
             
         Returns:
-            List of dicts with keys: name, location, confidence
+            List of dicts with keys: name, location, confidence, quality
         """
-        if not self.known_face_encodings:
-            return []
-        
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
@@ -131,33 +178,36 @@ class FaceManager:
         results = []
         
         for encoding, location in zip(face_encodings, face_locations):
-            # Compare with known faces
-            distances = face_recognition.face_distance(self.known_face_encodings, encoding)
-            
-            if len(distances) > 0:
-                best_match_idx = np.argmin(distances)
-                confidence = 1 - distances[best_match_idx]
-                
-                # Threshold for recognition (0.6 = 60% similar)
-                if confidence > 0.6:
-                    name = self.known_face_names[best_match_idx]
-                else:
-                    name = "Unknown"
-            else:
-                name = "Unknown"
-                confidence = 0.0
-            
             # Scale back location to original frame size
             top, right, bottom, left = location
             top *= 4
             right *= 4
             bottom *= 4
             left *= 4
+            full_loc = (top, right, bottom, left)
+            
+            # Evaluate quality
+            quality = self.evaluate_face_quality(frame, full_loc)
+            
+            # Compare with known faces
+            name = "Unknown"
+            confidence = 0.0
+            
+            if self.known_face_encodings:
+                distances = face_recognition.face_distance(self.known_face_encodings, encoding)
+                if len(distances) > 0:
+                    best_match_idx = np.argmin(distances)
+                    confidence = 1 - distances[best_match_idx]
+                    
+                    # Threshold for recognition (0.6 = 60% similar)
+                    if confidence > 0.6:
+                        name = self.known_face_names[best_match_idx]
             
             results.append({
                 'name': name,
-                'location': (top, right, bottom, left),
-                'confidence': float(confidence)
+                'location': full_loc,
+                'confidence': float(confidence),
+                'quality': quality
             })
         
         return results

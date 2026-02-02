@@ -17,7 +17,7 @@ except ImportError:
 class YOLODetector:
     """YOLO11 object detection wrapper"""
     
-    def __init__(self, model_name="yolo11m.pt"):
+    def __init__(self, model_name="yolo11x.pt"):
         """
         Initialize YOLO detector
         
@@ -55,7 +55,7 @@ class YOLODetector:
                 # Set a temporary cooldown or flag to avoid spam
                 self.failed_to_load = True 
     
-    def detect(self, frame, confidence_threshold=0.25):
+    def detect(self, frame, confidence_threshold=0.45):
         """
         Detect objects in frame
         
@@ -126,7 +126,7 @@ class YOLODetector:
                 'error': str(e)
             }
     
-    def detect_and_draw(self, frame, confidence_threshold=0.25):
+    def detect_and_draw(self, frame, confidence_threshold=0.45):
         """
         Detect objects and draw bounding boxes on frame
         
