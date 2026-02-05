@@ -140,13 +140,23 @@ def open_camera(camera_id=0):
         # Start the thread if not already running
         _start_vision_thread()
         
-        # customized feedback based on camera type
-        if "external" in result.get("camera_type", ""):
-            return "Using external vision module."
-        else:
-            return "Using internal camera."
+        cam_type = "external" if "external" in result.get("camera_type", "") else "internal"
+        
+        return {
+            "success": True,
+            "message": f"Using {cam_type} vision module.",
+            "type": "camera_status",
+            "is_active": True,
+            "camera_type": cam_type,
+            "index": result.get("index", 0)
+        }
     
-    return "I don't have access to any visual sensors right now."
+    return {
+        "success": False, 
+        "message": "I don't have access to any visual sensors right now.",
+        "type": "camera_status",
+        "is_active": False
+    }
 
 def close_camera(**kwargs):
     """
@@ -172,7 +182,12 @@ def close_camera(**kwargs):
     cv2.destroyAllWindows()
     print("VisionManager: Camera resources fully released.")
     
-    return "Camera closed, sir. My eyes are shut."
+    return {
+        "success": True,
+        "message": "Camera closed, sir. My eyes are shut.",
+        "type": "camera_status",
+        "is_active": False
+    }
 
 def capture_photo(filename=None):
     """

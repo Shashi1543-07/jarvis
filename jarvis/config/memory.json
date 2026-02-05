@@ -20,36 +20,6 @@
     },
     "short_term": [
         {
-            "timestamp": "2026-02-05T13:09:48.088380",
-            "user": "Tell me what you can see.",
-            "ai": "Man sitting on bed, talking on cell.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:10:13.351319",
-            "user": "Identify yourself.",
-            "ai": "a man in a yellow shirt is sitting on a couch",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:10:30.972313",
-            "user": "and recognize person.",
-            "ai": "Shashi Shaker Mestra.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:17:20.873333",
-            "user": "Who recognize me?",
-            "ai": "I don’t see anyone in front of me right now.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:18:16.765420",
-            "user": "Can you recognize how?",
-            "ai": "I don’t see any readable text.",
-            "mood": "positive"
-        },
-        {
             "timestamp": "2026-02-05T13:18:31.243480",
             "user": "Identify the person.",
             "ai": "I don't see anyone in front of me right now.",
@@ -77,6 +47,36 @@
             "timestamp": "2026-02-05T13:19:59.747392",
             "user": "Fuck up!",
             "ai": "Okay, Shashi, let’s get this straight. Spill.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T14:29:20.034062",
+            "user": "and lies the scene.",
+            "ai": "Blue background with a white border.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T14:29:33.411279",
+            "user": "Recognize the person.",
+            "ai": "People: I don’t see anyone in front of me right now.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T14:29:58.228366",
+            "user": "And we'll see you now what you...",
+            "ai": "Man standing in front of a mirror.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T14:30:49.502331",
+            "user": "Initialize base recon.",
+            "ai": "Alright, let’s do that. I’ve got the mapping protocols kicking in, ready to analyze. Let’s see what we’ve got.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T14:31:23.874273",
+            "user": "Identify the person in the camera.",
+            "ai": "Shashi Shekhar Mishra",
             "mood": "positive"
         }
     ],
@@ -106,8 +106,8 @@
     },
     "working_memory": [
         {
-            "entity": "Fuck",
-            "timestamp": "2026-02-05T13:19:59.747376"
+            "entity": "Identify",
+            "timestamp": "2026-02-05T14:31:23.874242"
         }
     ],
     "episodic_memory": [
@@ -270,12 +270,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-02-05T13:20:12.103985"
+        "last_analysis": "2026-02-05T14:33:32.783723"
     },
     "conversation_patterns": {
         "other": 43,
         "question": 9,
-        "statement": 42
+        "statement": 47
     },
     "relationships": {
         "John": {
@@ -322,20 +322,24 @@
         "Active during 13:00 with general activities": {
             "frequency": "routine",
             "last_recorded": "2026-02-05T13:20:12.114549"
+        },
+        "Active during 14:00 with general activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-05T14:33:32.787263"
         }
     },
     "interests": [
-        "ai",
+        "pizza?",
         "technology",
+        "memory.json,",
+        "it.",
+        "ai",
+        "it",
         "pizza",
         "to",
-        "to know if you could see it",
-        "pizza?",
-        "programming",
-        "it.",
-        "it",
         "pizza and italian food",
-        "memory.json,"
+        "programming",
+        "to know if you could see it"
     ],
     "favorites": {
         "music": [

@@ -66,19 +66,21 @@ class Brain:
         if not action_results:
             return "Command completed, Sir."
 
-        # local_brain is now initialized in __init__, so this check is no longer needed
-        # if self.local_brain is None:
-        #     from core.local_brain import LocalBrain
-        #     from core.memory import Memory
-        #     self.local_brain = LocalBrain(Memory())
-
         # Collect raw results and detect vision data
         messages = []
         vision_context = []
+        
+        # NEW: Context Manager Integration
+        from .context_manager import get_context_manager
+        ctx = get_context_manager()
 
         for r in action_results:
             action_name = r.get("action")
             res = r.get("result")
+
+            # Feed to Context Manager
+            if isinstance(res, dict) and "type" in res:
+                 ctx.update_vision(res["type"], res)
 
             # Special handling for structured vision data
             if isinstance(res, dict) and "type" in res:
@@ -126,6 +128,9 @@ class Brain:
             detail_for_llm = raw_summary
             if vision_context:
                 detail_for_llm += "\nVisual Details:\n" + "\n".join(vision_context)
+
+            # Inject active context
+            detail_for_llm += f"\n{ctx.get_context_string()}"
 
             user_prompt = f"User said: {user_input}\nAction Results: {detail_for_llm}"
 

@@ -155,44 +155,59 @@ class Router:
             return {"text": f"Plan execution result: {result['message']}", "action": "PLAN_COMPLETE"}
 
         # -----------------------------------------------------------------
-        # NORMAL NLU FLOW
+        # NEW: HIERARCHICAL INTENT ROUTING
         # -----------------------------------------------------------------
-        llm_response = self.brain.think(text, self.memory.short_term, self.memory.long_term)
+        from .nlu.intent_classifier import get_classifier
+        from .context_manager import get_context_manager
+        
+        classifier = get_classifier()
+        ctx = get_context_manager()
+        
+        # 1. Classify
+        intent_result = classifier.classify(text)
+        intent_type = intent_result.get("type") or intent_result.get("intent")
+        confidence = intent_result.get("confidence", 0.0)
+        
+        print(f"Router: Classified as {intent_type} ({confidence:.2f})")
+        
+        # 2. Update Context
+        ctx.update_dialogue(text, "", intent_type, confidence)
+        
+        # 3. Execution Logic
+        if intent_type == "CHAT":
+            # Fallback to LLM (Brain)
+            llm_response = self.brain.think(text, self.memory.short_term, self.memory.long_term)
+            try:
+                clean = llm_response.replace("```json", "").replace("```", "").strip()
+                if clean.startswith("{"):
+                    response_data = json.loads(clean)
+                else:
+                    response_data = {"action": "speak", "text": clean}
+            except:
+                response_data = {"action": "speak", "text": llm_response}
 
-        try:
-            clean_response = llm_response.replace("```json", "").replace("```", "").strip()
-            # print(f"DEBUG: Raw LLM Response: {clean_response}")
-            if not clean_response.startswith("{"):
-                response_data = {"action": "speak", "text": clean_response}
-            else:
-                response_data = json.loads(clean_response)
-                
-            # Extract and emit intent if present
-            if "intent" in response_data and self.on_intent_classified:
-                intent_name = response_data["intent"]
-                confidence = response_data.get("confidence", 0.9)
-                try:
-                    self.on_intent_classified(intent_name, confidence)
-                except Exception as e:
-                    print(f"Router: Failed to emit intent to GUI: {e}")
+        else:
+            # Execute Specific Intent
+            intent_result["intent"] = intent_type 
+            if "slots" not in intent_result: intent_result["slots"] = {}
+            intent_result["original_text"] = text
             
-            # CHECK FOR NEW INTENT STRUCTURE WITH SLOTS
-            if "intent" in response_data and "slots" in response_data:
-                res = self._handle_intent_object(response_data)
+            res = self._handle_intent_object(intent_result)
+            
+            # Handle complex results (Summarization)
+            if isinstance(res, dict) and res.get("needs_summary"):
+                print("Generating conversational response for complex Intent result...")
+                final_reply = self.brain.process_action_results(text, [{"action": res["action"], "result": res["result"]}])
                 
-                # Check if this intent result needs a second turn (summarization)
-                # 'res' here might be the result of _execute_intent
-                if isinstance(res, dict) and res.get("needs_summary"):
-                    print("Generating conversational response for complex Intent result...")
-                    final_reply = self.brain.process_action_results(text, [{"action": res["action"], "result": res["result"]}])
-                    self.memory.remember_conversation(text, final_reply)
-                    return {"text": final_reply}
-                return res
-                    
-        except json.JSONDecodeError:
-            print(f"Error parsing JSON: {llm_response}")
-            response_data = {"action": "speak", "text": "I'm having trouble thinking clearly."}
+                ctx.update_dialogue(text, final_reply, intent_type, confidence)
+                self.memory.remember_conversation(text, final_reply)
+                return {"text": final_reply}
+            
+            # Handle direct results
+            if isinstance(res, dict) and "text" in res:
+                 ctx.update_dialogue(text, res["text"], intent_type, confidence)
 
+            return res
         # Fallback to Legacy Action-Dictionary Handling
         reply_text = response_data.get("text", "")
 
