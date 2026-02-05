@@ -13,16 +13,12 @@ def main():
     # TODO: Load configuration
     # Initialize modules
     from core.router import Router
-    from inputs.speech_in import SpeechIn
-    from inputs.speech_out import SpeechOut
     
     router = Router()
     print("Router initialized.")
     
     # Voice mode setup (using new AudioEngine)
     voice_mode = True
-    speech_in = None
-    speech_out = None
 
     # GUI Mode Selection (Hardcoded to True for this phase, can be arg)
     USE_GUI = True
@@ -31,7 +27,7 @@ def main():
     if voice_mode:
         print("Initializing Audio Engine...")
         from core.audio_engine import AudioEngine
-        engine = AudioEngine()
+        engine = AudioEngine(router=router)
         engine.start()
         print("Realtime Audio Engine started.")
 

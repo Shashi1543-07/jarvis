@@ -18,7 +18,7 @@ from .voice.noise_suppression import AdaptiveNoiseSuppressor
 
 class AudioEngine:
 
-    def __init__(self):
+    def __init__(self, router=None):
         print("AudioEngine: Initializing...")
         # Enhanced state machine with race condition handling
         self.state_controller = RaceConditionSafeVoiceController()
@@ -46,7 +46,13 @@ class AudioEngine:
         print("AudioEngine: STT ready.")
         self.tts = TextToSpeechEngine(on_audio_chunk=self._on_tts_chunk)
         print("AudioEngine: TTS ready.")
-        self.router = Router()
+
+        if router:
+            self.router = router
+            print("AudioEngine: Using provided Router.")
+        else:
+            self.router = Router()
+            print("AudioEngine: Created new Router.")
         
         # Connect router callbacks to GUI
         self.router.on_intent_classified = self._on_intent_from_router
