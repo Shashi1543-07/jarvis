@@ -133,7 +133,10 @@ class SystemMonitorThread(QThread):
     def __init__(self, server):
         super().__init__()
         self.server = server
-        self.running = True
+        self.stop_event = threading.Event()
+
+    def stop(self):
+        self.stop_event.set()
 
     def get_gpu_usage(self):
         try:
@@ -148,7 +151,7 @@ class SystemMonitorThread(QThread):
 
     def run(self):
         print("SystemMonitor: Started")
-        while self.running:
+        while not self.stop_event.is_set():
             try:
                 cpu = psutil.cpu_percent(interval=None)
                 ram = psutil.virtual_memory().percent
@@ -165,10 +168,12 @@ class SystemMonitorThread(QThread):
                     }
                 }
                 self.server.broadcast(stats)
-                time.sleep(1)
+                if self.stop_event.wait(1):
+                    break
             except Exception as e:
                 print(f"System Monitor Error: {e}")
-                time.sleep(5)
+                if self.stop_event.wait(5):
+                    break
 
 class CustomWebEnginePage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):
@@ -277,6 +282,6 @@ class JarvisGUI(QMainWindow):
     def closeEvent(self, event):
         print("GUI: Closing...")
         self.ws_server.stop()
-        self.monitor_thread.running = False
+        self.monitor_thread.stop()
         self.monitor_thread.wait()
         event.accept()

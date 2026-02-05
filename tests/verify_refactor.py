@@ -79,5 +79,30 @@ class TestAudioEngineInit(unittest.TestCase):
         # Verify engine.router is the return value of Router()
         self.assertEqual(engine.router, MockRouterClass.return_value)
 
+    def test_thinking_worker(self):
+        """Test that the thinking worker processes requests."""
+        print("\nTesting thinking worker...")
+        mock_router = MagicMock()
+        mock_router.route.return_value = {"action": "speak", "text": "Hello"}
+        mock_router.on_intent_classified = None
+
+        engine = AudioEngine(router=mock_router)
+
+        # Manually put a task in the queue
+        engine.request_queue.put((1, "Test Input"))
+
+        # Wait for response in response_queue
+        try:
+            req_id, result = engine.response_queue.get(timeout=2)
+            print(f"Got result: {req_id}, {result}")
+            self.assertEqual(req_id, 1)
+            self.assertEqual(result['type'], 'response')
+            self.assertEqual(result['data']['text'], 'Hello')
+            mock_router.route.assert_called_with("Test Input")
+        except Exception as e:
+            self.fail(f"Thinking worker failed: {e}")
+
+        engine.stop()
+
 if __name__ == '__main__':
     unittest.main()
