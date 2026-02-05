@@ -18,7 +18,68 @@
             "general": []
         }
     },
-    "short_term": [],
+    "short_term": [
+        {
+            "timestamp": "2026-02-05T13:09:48.088380",
+            "user": "Tell me what you can see.",
+            "ai": "Man sitting on bed, talking on cell.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:10:13.351319",
+            "user": "Identify yourself.",
+            "ai": "a man in a yellow shirt is sitting on a couch",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:10:30.972313",
+            "user": "and recognize person.",
+            "ai": "Shashi Shaker Mestra.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:17:20.873333",
+            "user": "Who recognize me?",
+            "ai": "I don’t see anyone in front of me right now.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:18:16.765420",
+            "user": "Can you recognize how?",
+            "ai": "I don’t see any readable text.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:18:31.243480",
+            "user": "Identify the person.",
+            "ai": "I don't see anyone in front of me right now.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:18:54.269465",
+            "user": "Can't you see me? It's right in the front of you.",
+            "ai": "Man in yellow shirt.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:19:09.478120",
+            "user": "Recognize that person.",
+            "ai": "People: I don’t see anyone in front of me right now.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:19:28.950331",
+            "user": "initialised space recognition.",
+            "ai": "A man in a yellow shirt standing in front of a window.",
+            "mood": "positive"
+        },
+        {
+            "timestamp": "2026-02-05T13:19:59.747392",
+            "user": "Fuck up!",
+            "ai": "Okay, Shashi, let’s get this straight. Spill.",
+            "mood": "positive"
+        }
+    ],
     "sessions": [
         {
             "timestamp": "2025-12-01T19:20:27.622950",
@@ -45,8 +106,8 @@
     },
     "working_memory": [
         {
-            "entity": "Can",
-            "timestamp": "2026-02-02T00:02:00.927002"
+            "entity": "Fuck",
+            "timestamp": "2026-02-05T13:19:59.747376"
         }
     ],
     "episodic_memory": [
@@ -77,6 +138,12 @@
         {
             "date": "2026-02-02T00:21:54.290493",
             "summary": "Interaction highlights: User: Can you tell me what is written on book?\nAI: I don’t have the information about the book’s text at this moment.\n\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-05T12:52:42.978043",
+            "summary": "Interaction highlights: User: can you recognize me?\nAI: a man sitting on the floor with his feet up\nMood: positive\nUser: and recognize person.\nAI: Man with a beard, yellow shirt.\nMood: positive\nUser: analyze the scene.\nAI: Man sitting on bed, drinking water.\nMood: positive\nUser: Read the text.\nAI: 3\nMood: positive\nUser: Read what you can see on the bottle.\nAI: Visual Details: 3\n\nMood: positive",
             "mood": "positive",
             "importance": 1.0
         }
@@ -189,6 +256,12 @@
             "emotion": "happy",
             "intensity": 1,
             "context": "if you did not see this video, you would like to know if you could see it.  let's try this one.  i'll see you in the next video.  thank you."
+        },
+        {
+            "timestamp": "2026-02-05T12:43:40.639313",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "good."
         }
     ],
     "personality_profile": {
@@ -197,12 +270,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-02-02T00:04:19.087342"
+        "last_analysis": "2026-02-05T13:20:12.103985"
     },
     "conversation_patterns": {
-        "other": 42,
+        "other": 43,
         "question": 9,
-        "statement": 21
+        "statement": 42
     },
     "relationships": {
         "John": {
@@ -241,20 +314,28 @@
         "Active during 0:00 with learning activities": {
             "frequency": "routine",
             "last_recorded": "2026-02-02T00:03:58.489202"
+        },
+        "Active during 12:00 with general activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-05T12:59:35.771738"
+        },
+        "Active during 13:00 with general activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-05T13:20:12.114549"
         }
     },
     "interests": [
-        "it.",
-        "programming",
-        "memory.json,",
-        "to",
-        "pizza",
         "ai",
         "technology",
-        "pizza?",
-        "pizza and italian food",
+        "pizza",
+        "to",
         "to know if you could see it",
-        "it"
+        "pizza?",
+        "programming",
+        "it.",
+        "it",
+        "pizza and italian food",
+        "memory.json,"
     ],
     "favorites": {
         "music": [

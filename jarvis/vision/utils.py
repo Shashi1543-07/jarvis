@@ -1,42 +1,38 @@
 import cv2
 import time
 import threading
+from core.vision.vision_manager import get_vision_manager
 
 class CameraManager:
-    _instance = None
-    _lock = threading.Lock()
-    
-    def __new__(cls):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(CameraManager, cls).__new__(cls)
-                cls._instance.cap = None
-                cls._instance.is_active = False
-        return cls._instance
-    
+    """
+    Legacy wrapper around the new core VisionManager.
+    Ensures backward compatibility while providing intelligent camera selection.
+    """
+    def __init__(self):
+        self.vm = get_vision_manager()
+
     def open_camera(self, camera_id=0):
-        if self.cap is not None and self.cap.isOpened():
-            return True
-            
-        self.cap = cv2.VideoCapture(camera_id)
-        if self.cap.isOpened():
-            self.is_active = True
-            return True
-        return False
+        """
+        Delegates to VisionManager.open_vision().
+        We ignore the specific camera_id=0 default to allow intelligent selection.
+        If a specific ID > 0 is passed, we might want to respect it, but for now
+        Core requirements say 'automatically prefer', so we trust VisionManager.
+        """
+        # If the user specifically asks for a non-zero camera, we could force it, 
+        # but VisionManager logic is "High Index = Priority".
+        # Let's trust VisionManager's smart selection.
+        result = self.vm.open_vision()
+        return result["success"]
     
     def close_camera(self):
-        if self.cap is not None:
-            self.cap.release()
-            self.cap = None
-        self.is_active = False
-        cv2.destroyAllWindows()
+        self.vm.close_vision()
         
     def get_frame(self):
-        if self.cap is not None and self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                return frame
-        return None
+        return self.vm.get_frame()
+
+    @property
+    def is_active(self):
+        return self.vm.is_active
 
 def get_camera():
     return CameraManager()

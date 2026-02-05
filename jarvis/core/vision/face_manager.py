@@ -168,8 +168,8 @@ class FaceManager:
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Resize frame for faster processing (1/4 size)
-        small_frame = cv2.resize(rgb_frame, (0, 0), fx=0.25, fy=0.25)
+        # Resize frame for faster processing (0.5 size for better accuracy than 0.25)
+        small_frame = cv2.resize(rgb_frame, (0, 0), fx=0.5, fy=0.5)
         
         # Find faces and encodings
         face_locations = face_recognition.face_locations(small_frame)
@@ -180,10 +180,10 @@ class FaceManager:
         for encoding, location in zip(face_encodings, face_locations):
             # Scale back location to original frame size
             top, right, bottom, left = location
-            top *= 4
-            right *= 4
-            bottom *= 4
-            left *= 4
+            top *= 2
+            right *= 2
+            bottom *= 2
+            left *= 2
             full_loc = (top, right, bottom, left)
             
             # Evaluate quality
@@ -199,8 +199,8 @@ class FaceManager:
                     best_match_idx = np.argmin(distances)
                     confidence = 1 - distances[best_match_idx]
                     
-                    # Threshold for recognition (0.6 = 60% similar)
-                    if confidence > 0.6:
+                    # Threshold for recognition (0.5 = 50% similar, more permissive for webcam/DroidCam)
+                    if confidence > 0.5:
                         name = self.known_face_names[best_match_idx]
             
             results.append({

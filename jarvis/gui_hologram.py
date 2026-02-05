@@ -55,11 +55,37 @@ class WSServer(QThread):
             self.loop.close()
             print("WSServer: Loop closed")
 
+    async def _async_shutdown(self):
+        """Cleanup logic inside the loop"""
+        print("WSServer: Closing all client connections...")
+        if self.clients:
+            close_tasks = [client.close() for client in list(self.clients)]
+            await asyncio.gather(*close_tasks, return_exceptions=True)
+            self.clients.clear()
+        
+        # Cancel all pending tasks except the current one
+        pending = [t for t in asyncio.all_tasks(self.loop) if t is not asyncio.current_task(self.loop)]
+        for task in pending:
+            task.cancel()
+        
+        if pending:
+            # Wait for tasks to be cancelled
+            await asyncio.gather(*pending, return_exceptions=True)
+            
+        print("WSServer: Async shutdown complete.")
+
     def stop(self):
         self.running = False
-        if self.loop and hasattr(self, '_stop_future'):
-            self.loop.call_soon_threadsafe(self._stop_future.cancel)
+        if self.loop and self.loop.is_running():
+            # Schedule the async shutdown inside the loop
+            self.loop.call_soon_threadsafe(lambda: asyncio.create_task(self._shutdown_and_stop()))
         self.wait()
+
+    async def _shutdown_and_stop(self):
+        await self._async_shutdown()
+        if hasattr(self, '_stop_future') and not self._stop_future.done():
+            self._stop_future.set_result(True)
+        self.loop.stop()
 
 
     async def handler(self, websocket):
@@ -100,11 +126,7 @@ class WSServer(QThread):
             return_exceptions=True
         )
 
-    def stop(self):
-        self.running = False
-        if self.loop:
-            self.loop.call_soon_threadsafe(self.loop.stop)
-        self.wait()
+    # Removed duplicate stop method
 
 class SystemMonitorThread(QThread):
     # Emits stats directly to the WSServer

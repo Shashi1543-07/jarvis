@@ -71,6 +71,14 @@ def close_app(app_name, **kwargs):
     clean_name = app_name.lower().strip().rstrip('.')
     print(f"Closing app: {clean_name}")
     
+    # Mapping for internal systems
+    if "camera" in clean_name or "vision" in clean_name:
+        try:
+            from . import vision_actions
+            return vision_actions.close_camera()
+        except Exception as e:
+            print(f"Error closing internal vision: {e}")
+
     # Common process name mapping
     process_map = {
         "chrome": "chrome.exe",

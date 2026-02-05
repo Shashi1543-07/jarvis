@@ -501,6 +501,7 @@ class EnhancedMemory:
             r'\b(girlfriend|boyfriend|gf|bf|partner|spouse|wife|husband)\s+(?:is\s+)?(?:named|called|is)\s+(\w+(?:\s+\w+)*)\b',  # "girlfriend is Akansha" or "girlfriend named Akansha"
             r'\b(girlfriend|boyfriend|gf|bf|partner|spouse|wife|husband),?\s+(?:her|his|their)\s+name\s+is\s+(\w+(?:\s+\w+)*)\b',  # "girlfriend, her name is Akansha"
             r'\b(i have|have)\s+a\s+(mom|dad|mother|father|brother|sister|son|daughter|wife|husband|spouse|friend|colleague|boss|employee|girlfriend|boyfriend|gf|bf|partner|crush|date|ex|ex-girlfriend|ex-boyfriend|ex-wife|ex-husband)[^,]*,\s*i\s+love\s+(?:her|him)[^,]*,\s+(?:her|his|their)\s+name\s+is\s+(\w+(?:\s+\w+)*)\b',  # "I have a girlfriend, I love her, her name is Akansha"
+            r'\b(his|her|their)\s+name\s+is\s+(\w+(?:\s+\w+)*)\b',  # Simple "his name is Shaker"
         ]
 
         relationships = []

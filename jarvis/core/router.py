@@ -263,6 +263,14 @@ class Router:
             # Update memory with final reply turn
             self.memory.remember_conversation(text, final_reply)
             return {"text": final_reply}
+        
+        # Optimization: If it was a vision result but simple (e.g. success/fail), 
+        # append it directly if it's not already there.
+        if results and any(r.get("action") in data_intensive_actions for r in results):
+             for r in results:
+                 res_val = r.get("result")
+                 if isinstance(res_val, str) and res_val not in action_summary:
+                     action_summary += f" {res_val}"
 
         # Final response construction
         final_text = reply_text if reply_text else "Action completed, sir."

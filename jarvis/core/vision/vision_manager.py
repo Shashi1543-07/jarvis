@@ -22,6 +22,7 @@ class VisionManager:
         self.cap = None
         self.active_camera_index = None
         self.available_cameras = []
+        self._available_cameras_cache = None # Cache for scanned camera indices
         self.is_active = False
         self.camera_lock = threading.Lock()
         self._initialized = True
@@ -32,11 +33,13 @@ class VisionManager:
         Scans for available cameras by attempting to open indices.
         Returns a list of available camera indices.
         """
+        if self._available_cameras_cache is not None:
+            return self._available_cameras_cache
+
         print("VisionManager: Scanning for cameras...")
         available = []
         
         # We temporarily open cameras to check them
-        # This might be slow if many indices are checked, but 0-3 is usually enough
         for i in range(max_cameras_to_check):
             try:
                 cap = cv2.VideoCapture(i, cv2.CAP_DSHOW) # Use DSHOW on Windows for faster enumeration if possible
@@ -55,6 +58,7 @@ class VisionManager:
                 print(f"VisionManager: Error checking camera {i}: {e}")
         
         self.available_cameras = available
+        self._available_cameras_cache = available
         return available
 
     def select_best_camera(self):
@@ -137,13 +141,24 @@ class VisionManager:
     def close_vision(self):
         """Releases camera resources properly"""
         with self.camera_lock:
+            if not self.is_active:
+                print("VisionManager: Camera already released or inactive.")
+                return
+            
             print("VisionManager: Releasing camera resources...")
             if self.cap is not None:
-                self.cap.release()
-                self.cap = None
+                try:
+                    self.cap.release()
+                    time.sleep(0.1) # Brief delay for hardware to settle
+                except Exception as e:
+                    print(f"VisionManager: Release error: {e}")
+                finally:
+                    self.cap = None
+            
             self.is_active = False
             self.active_camera_index = None
             cv2.destroyAllWindows()
+            print("VisionManager: Resources fully purged.")
 
     def get_frame(self):
         """Returns the current frame, or None if failed"""
@@ -160,10 +175,11 @@ class VisionManager:
             print(f"VisionManager: Frame read error: {e}")
             return None
 
-    def get_stable_frame(self, sample_count=5, delay=0.05):
+    def get_stable_frame(self, sample_count=4, delay=0.04):
         """
         Captures multiple frames and returns the sharpest one.
         Technique: Variance of Laplacian.
+        Optimized for JARVIS: reduced default sample count for speed.
         """
         if not self.is_active or self.cap is None:
             return None

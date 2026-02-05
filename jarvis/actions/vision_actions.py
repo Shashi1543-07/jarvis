@@ -148,7 +148,7 @@ def open_camera(camera_id=0):
     
     return "I don't have access to any visual sensors right now."
 
-def close_camera():
+def close_camera(**kwargs):
     """
     Release webcam and stop vision thread
     
@@ -170,6 +170,7 @@ def close_camera():
     vm.close_vision()
     
     cv2.destroyAllWindows()
+    print("VisionManager: Camera resources fully released.")
     
     return "Camera closed, sir. My eyes are shut."
 
@@ -249,6 +250,10 @@ def _smart_vision_route(prompt, original_intent):
              main_desc = scene_results.get('description', "I'm looking at the scene.")
              obj_list = yolo_results.get('objects', [])
              obj_count = len(obj_list)
+             
+             # Cleanup if one-shot
+             if not _vision_state["running"]:
+                 get_camera().close_camera()
              
              message = f"Yes, I can see. {main_desc}"
              if obj_count > 0:
@@ -330,12 +335,79 @@ def analyze_scene(prompt="What do you see?", **kwargs):
             if frame is None: return {"error": "Camera not active."}
             face_mgr = _get_face_manager()
             results = face_mgr.recognize_faces(frame)
-            names = [r['name'] for r in results] if results else []
-            msg = f"I see {', '.join(names)}" if names else "I don't see anyone."
-            return {"type": "identify_people", "message": msg, "people": names}
+            
+            people_details = []
+            names = []
+            
+            for r in results:
+                name = r['name']
+                names.append(name)
+                
+                if name != "Unknown":
+                    # Fetch from EnhancedMemory if available
+                    from core.enhanced_memory import EnhancedMemory
+                    mem = EnhancedMemory()
+                    
+                    details = ""
+                    
+                    # 1. Check if this is the USER (Fuzzy match with full_name and preferred_names)
+                    user_info = mem.long_term.get('user_info', {})
+                    is_user = False
+                    full_name = user_info.get('full_name', '').lower()
+                    pref_names = [n.lower() for n in user_info.get('preferred_names', [])]
+                    
+                    name_lower = name.lower()
+                    if name_lower in full_name or any(pn in name_lower or name_lower in pn for pn in pref_names):
+                        is_user = True
+                    
+                    if is_user:
+                        details = "who is my creator and the user I serve"
+                        education = user_info.get('education')
+                        if education:
+                            details += f" ({education})"
+                    else:
+                        # 2. Check for known relationships
+                        rel = mem.relationships.get(name)
+                        if not rel:
+                            # Try fuzzy match in relationships
+                            for r_name, r_data in mem.relationships.items():
+                                if name_lower in r_name.lower() or r_name.lower() in name_lower:
+                                    rel = r_data
+                                    break
+                                    
+                        if rel:
+                            details = f"who is my {rel['type']}"
+                            if rel.get('details'):
+                                details += f" ({rel['details']})"
+                    
+                    # 3. Check semantic facts if no user/rel info or to add more
+                    facts = mem.semantic_memory.get(name.lower(), [])
+                    if facts:
+                        top_fact = facts[0]['fact']
+                        if details: details += ", and "
+                        details += f"I remember: {top_fact}"
+                    
+                    people_details.append(f"{name} {details}".strip())
+                else:
+                    people_details.append("an unknown person")
+            
+            if not names:
+                msg = "I don't see anyone in front of me right now."
+            else:
+                msg = f"I see {', '.join(people_details)}."
+                
+            return {
+                "type": "identify_people",
+                "message": msg,
+                "people": names,
+                "details": people_details
+            }
 
         # DEFAULT: Generic Scene Description + Potential Auto-OCR
-        frame = _get_current_frame()
+        # Determine if we should auto-close (only if vision thread is NOT running)
+        should_release = not _vision_state["running"]
+        frame = _get_current_frame(auto_close=False) # Get frame but don't close yet
+        
         if frame is None: return {"error": "Camera not active."}
         
         # YOLO first to see if we should trigger OCR
@@ -369,6 +441,11 @@ def analyze_scene(prompt="What do you see?", **kwargs):
              message += f" I also noticed some text: '{ocr_result.get('text')}'."
         
         combined_data["message"] = message
+        
+        # CLEANUP: Release camera if we opened it just for this and no thread is running
+        if should_release:
+            get_camera().close_camera()
+            
         return combined_data
 
 # ============================================================================
@@ -431,6 +508,10 @@ def is_object_present(object_name):
     else:
         message = f"No, I don't see any {object_name} right now."
     
+    # Cleanup if one-shot
+    if not _vision_state["running"]:
+        get_camera().close_camera()
+        
     return {
         "object": object_name,
         "present": result['present'],
@@ -718,7 +799,7 @@ def read_text(prompt="Read the text.", **kwargs):
         
         # 2. Capture Stable Frame
         print("OCR: Capturing stable frame for text...")
-        frame = vm.get_stable_frame(sample_count=8) 
+        frame = vm.get_stable_frame(sample_count=4) # Reduced from 8 for faster response
         
         if frame is None:
             _vision_state["active_modes"] = previous_modes
@@ -933,19 +1014,34 @@ def check_posture():
 # VISION LOOP & HELPERS
 # ============================================================================
 
-def _get_current_frame():
-    """Get latest frame from camera"""
+def _get_current_frame(auto_close=False):
+    """
+    Get latest frame from camera.
+    
+    Args:
+        auto_close: If True and we opened the camera just for this call, close it after.
+                    (Note: Use with caution as multiple calls might need it open).
+    """
     cam = get_camera()
     
     # If vision thread running, use cached frame
     if _vision_state["running"] and _vision_state["current_frame"] is not None:
         return _vision_state["current_frame"]
     
-    # Otherwise open camera and get frame
-    if not cam.open_camera():
-        return None
+    # If not running, we must open for one-shot
+    opened_now = False
+    if not cam.is_active:
+        if not cam.open_camera():
+            return None
+        opened_now = True
+        # If we just opened it, give it a moment for auto-exposure
+        time.sleep(0.5)
     
     frame = cam.get_frame()
+    
+    if opened_now and auto_close:
+        cam.close_camera()
+        
     return frame
 
 def _start_vision_thread():
