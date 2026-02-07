@@ -46,6 +46,7 @@ _emotion_detector = None
 _ocr_engine = None
 _gesture_engine = None
 _pose_guard = None
+_tracker = None
 
 # Global vision thread state
 _vision_state = {
@@ -54,12 +55,14 @@ _vision_state = {
     "running": False,
     "lock": threading.Lock(),
     "current_frame": None,  # Store latest frame for queries
-    "latest_summary": "Nothing detected yet.",
+    "latest_summary": "Vision system ready.",
     "latest_gesture": {"success": False, "gesture": "None"},
     "last_update_time": 0,
     "history": [], # List of (timestamp, summary) tuples
     "object_stability": {}, # {obj_name: count} tracking
-    "stability_threshold": 3 # Frames required to confirm
+    "stability_threshold": 3, # Frames required to confirm
+    "tracking_roi": None,
+    "tracking_object_name": None
 }
 
 # State for proactive face learning
@@ -993,10 +996,10 @@ def deep_scan():
     """
     with _vision_state["lock"]:
         _vision_state["active_modes"] = {"object_detection", "face_recognition", "emotion_detection"}
+        # Add motion detection if available in the loop
+        _vision_state["active_modes"].add("motion_detection")
     _start_vision_thread()
     return "Initialising deep scan. All vision systems are now active and tracking, sir."
-    _vision_state["active_modes"].add("motion_detection")
-    return "Motion detection enabled. I'll alert you to movement."
 
 def scan_qr_code():
     """Enable QR/barcode scanning mode"""
@@ -1022,7 +1025,7 @@ def check_posture():
         return "MediaPipe not installed."
     
     _start_vision_thread()
-    _vision_state["active_modes"].add("posture_correction")
+    _vision_state["active_modes"].add("posture_guard")
     return "Posture monitoring enabled. Sit up straight!"
 
 # ============================================================================
@@ -1189,6 +1192,18 @@ def _vision_loop():
                 cv2.putText(display_frame, f"Emotion: {emotion} ({conf:.2f})",
                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
+        # QR Scanning
+        if "qr_scanning" in modes:
+            if qr_decode is not None:
+                decoded_objects = qr_decode(frame)
+                for obj in decoded_objects:
+                    data = obj.data.decode('utf-8')
+                    (x, y, w, h) = obj.rect
+                    cv2.rectangle(display_frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                    cv2.putText(display_frame, f"QR: {data}", (x, y - 10),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                    _vision_state["latest_summary"] = f"Detected QR code: {data}"
+
         # Gesture Recognition
         if "gesture_control" in modes:
             if gestures is None:
@@ -1223,6 +1238,20 @@ def _vision_loop():
                 
                 if res["is_slouching"]:
                     _vision_state["latest_summary"] = "User is slouching. I should politely recommend adjustment."
+        
+        # Object Tracking
+        if "object_tracking" in modes:
+            if _tracker is not None:
+                success, bbox = _tracker.update(frame)
+                if success:
+                    _vision_state["tracking_roi"] = bbox
+                    (x, y, w, h) = [int(v) for v in bbox]
+                    cv2.rectangle(display_frame, (x, y), (x + w, y + h), (255, 255, 0), 2)
+                    cv2.putText(display_frame, f"TRACKING: {_vision_state.get('tracking_object_name', 'OBJECT')}", 
+                               (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                else:
+                    _vision_state["active_modes"].discard("object_tracking")
+                    _vision_state["latest_summary"] = f"Lost track of {_vision_state.get('tracking_object_name', 'object')}."
         
         # Show frame
         cv2.imshow("Jarvis Vision", display_frame)
@@ -1266,9 +1295,54 @@ def face_register(person_name):
     """Legacy face registration"""
     return remember_face(person_name)
 
-def object_tracking(object_name):
-    """Placeholder for object tracking"""
-    return f"Tracking {object_name}... (Feature in development)"
+def object_tracking(object_name=None):
+    """
+    Initialize object tracking. Uses YOLO to find the object first, then starts a CSRT tracker.
+    """
+    global _tracker
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
+        
+    if not object_name:
+        return {"message": "Please specify what you want me to track, sir.", "type": "input_required"}
+        
+    print(f"Vision: Attempting to track {object_name}...")
+    
+    # 1. Use YOLO to find the object ROI
+    detector = _get_yolo_detector()
+    results = detector.detect(frame)
+    details = results.get('details', [])
+    
+    roi = None
+    for d in details:
+        if object_name.lower() in d['label'].lower():
+            roi = d['box'] # [l, t, r, b]
+            break
+            
+    if roi is None:
+        return {"message": f"I can't see a {object_name} right now to start tracking.", "type": "error"}
+        
+    # 2. Initialize Tracker (CSRT is robust)
+    try:
+        if not hasattr(cv2, 'TrackerCSRT_create'):
+             return {"error": "OpenCV CSRT Tracker not available in this version."}
+             
+        _tracker = cv2.TrackerCSRT_create()
+        # Convert [l, t, r, b] to (x, y, w, h)
+        l, t, r, b = roi
+        bbox = (int(l), int(t), int(r-l), int(b-t))
+        _tracker.init(frame, bbox)
+        
+        with _vision_state["lock"]:
+            _vision_state["tracking_roi"] = bbox
+            _vision_state["tracking_object_name"] = object_name
+            _vision_state["active_modes"].add("object_tracking")
+            
+        _start_vision_thread()
+        return f"Tracking {object_name} initialized. My sensors are locked on, sir."
+    except Exception as e:
+        return {"error": f"Failed to initialize tracker: {e}"}
 
 def object_count(object_name=None):
     """Alias for count_objects"""
@@ -1283,15 +1357,134 @@ def highlight_object(object_name):
     return object_detection()
 
 def document_scan():
-    """Document scanning placeholder"""
-    return "Document scanning... (Feature in development)"
+    """
+    Advanced document scanning: Perspective correction + OCR.
+    """
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
+    
+    # 1. Perspective correction (attempt to find document contour)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 75, 200)
+    
+    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:5]
+    
+    doc_cnt = None
+    for c in cnts:
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        if len(approx) == 4:
+            doc_cnt = approx
+            break
+            
+    processed_frame = frame
+    if doc_cnt is not None:
+        # Simple perspective transform helper logic inline or as separate function
+        def order_points(pts):
+            rect = np.zeros((4, 2), dtype="float32")
+            s = pts.sum(axis=1)
+            rect[0] = pts[np.argmin(s)]
+            rect[2] = pts[np.argmax(s)]
+            diff = np.diff(pts, axis=1)
+            rect[1] = pts[np.argmin(diff)]
+            rect[3] = pts[np.argmax(diff)]
+            return rect
+
+        def four_point_transform(image, pts):
+            rect = order_points(pts)
+            (tl, tr, br, bl) = rect
+            widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+            widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+            maxWidth = max(int(widthA), int(widthB))
+            heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+            heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+            maxHeight = max(int(heightA), int(heightB))
+            dst = np.array([[0, 0], [maxWidth - 1, 0], [maxWidth - 1, maxHeight - 1], [0, maxHeight - 1]], dtype="float32")
+            M = cv2.getPerspectiveTransform(rect, dst)
+            return cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+
+        pts = doc_cnt.reshape(4, 2)
+        processed_frame = four_point_transform(frame, pts)
+        print("Vision: Document contour found and perspective corrected.")
+    
+    # 2. Run OCR on the processed (possibly warped) frame
+    engine = _get_ocr_engine()
+    results = engine.detect_and_read(processed_frame)
+    text = " ".join([r['detected_text'] for r in results if r.get('confidence', 0) > 0.3])
+    
+    if not text.strip():
+        return {"message": "I found a document structure but couldn't read the text clearly. Please hold it steady.", "type": "ocr_failed"}
+        
+    return {
+        "text": text,
+        "type": "document_scan",
+        "message": f"Document scanned. Here's what I read: {text[:500]}..."
+    }
+
+def highlight_object(object_name=None):
+    """
+    Finds and highlights an object in the live view.
+    """
+    if not object_name:
+        return {"message": "What should I highlight, sir?", "type": "input_required"}
+        
+    _start_vision_thread()
+    _vision_state["active_modes"].add("object_detection")
+    # We'll use the latest_summary to indicate we are looking for it
+    _vision_state["latest_summary"] = f"Looking for {object_name} to highlight..."
+    return f"Scanning for {object_name}. I'll highlight it as soon as it's in range."
 
 def activity_recognition():
-    """Activity recognition placeholder"""
-    return "Activity recognition... (Feature in development)"
+    """
+    Activity recognition using pose estimation.
+    """
+    if mp is None:
+        return "MediaPipe not installed."
+        
+    frame = _get_current_frame()
+    if frame is None:
+        return {"error": "Camera not active."}
+        
+    poses = _get_pose_guard()
+    res = poses.check_posture(frame)
+    
+    if not res["success"]:
+        return {"message": "I can't see your full body to recognize activity.", "type": "error"}
+        
+    # Heuristic based on landmarks (simple standing vs sitting)
+    # Using normalized Y coordinates of shoulders vs hips
+    landmarks = res["landmarks"]
+    # mp_pose.PoseLandmark.LEFT_HIP = 23, LEFT_SHOULDER = 11
+    # If using Mediapipe directly inside pose_guard
+    try:
+        # This is a bit internal to pose_guard's implementation
+        shoulder_y = landmarks[11].y if hasattr(landmarks[11], 'y') else 0.5
+        hip_y = landmarks[23].y if hasattr(landmarks[23], 'y') else 0.7
+        
+        diff = hip_y - shoulder_y
+        if diff < 0.2:
+            activity = "SITTING"
+        else:
+            activity = "STANDING"
+            
+        return {
+            "activity": activity,
+            "message": f"I see you are currently {activity.lower()}.",
+            "type": "activity_recognition"
+        }
+    except:
+        return {"message": "I see you there, but I'm still analyzing your movement.", "type": "activity_summary"}
 
 def record_video(duration=10, filename=None):
     """Record video clip"""
+    try:
+        duration = int(duration)
+    except:
+        duration = 10
+        
     _start_vision_thread()
     
     print(f"Recording video for {duration} seconds...")
@@ -1336,4 +1529,7 @@ def recall_vision():
 
 def get_latest_gesture():
     """Returns the latest raw gesture data."""
-    return _vision_state.get("latest_gesture", {"success": False, "gesture": "None"})
+    gesture = _vision_state.get("latest_gesture")
+    if gesture is None:
+        return {"success": False, "gesture": "None"}
+    return gesture

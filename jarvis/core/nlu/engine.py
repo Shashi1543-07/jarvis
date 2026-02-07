@@ -13,29 +13,176 @@ class NLUEngine:
     def __init__(self, llm_brain=None):
         self.llm = llm_brain
         
-        # Helper to clean slots
+        # Helper to clean slots and normalize app names
         def clean_slot(text):
-            return re.sub(r'^(my|the|a|an)\s+', '', text, flags=re.IGNORECASE).strip()
+            # Remove common prefixes
+            text = re.sub(r'^(my|the|a|an)\s+', '', text, flags=re.IGNORECASE).strip()
+            # Remove trailing punctuation and filler words
+            text = re.sub(r'[\.\,\!\?]+$', '', text).strip()
+            text = re.sub(r'\s+(please|now|then|for me)$', '', text, flags=re.IGNORECASE).strip()
+            return text
+        
+        # App name aliases for common Windows applications
+        self.app_aliases = {
+            # Browsers
+            "edge": "msedge", "microsoft edge": "msedge", "ms edge": "msedge",
+            "chrome": "chrome", "google chrome": "chrome",
+            "firefox": "firefox", "mozilla firefox": "firefox",
+            "brave": "brave",
+            # Microsoft Office
+            "word": "WINWORD", "microsoft word": "WINWORD",
+            "excel": "excel", "microsoft excel": "excel",
+            "powerpoint": "powerpnt", "ppt": "powerpnt",
+            "outlook": "outlook", "microsoft outlook": "outlook",
+            "notepad": "notepad",
+            # Development
+            "vscode": "Code", "visual studio code": "Code", "vs code": "Code",
+            "code": "Code",
+            # Media
+            "spotify": "Spotify",
+            "vlc": "vlc",
+            # System
+            "explorer": "explorer", "file explorer": "explorer", "files": "explorer",
+            "settings": "SystemSettings",
+            "calculator": "calc", "calc": "calc",
+            "terminal": "wt", "windows terminal": "wt",
+            "cmd": "cmd", "command prompt": "cmd",
+            "powershell": "powershell",
+            # Games/Common
+            "discord": "Discord",
+            "slack": "slack",
+            "teams": "Teams", "microsoft teams": "Teams",
+            "zoom": "Zoom",
+        }
+        
+        # Helper to normalize app names using aliases
+        app_aliases = self.app_aliases  # Local reference for closure
+        def normalize_app_name(text):
+            text = clean_slot(text).lower()
+            # Check direct match in aliases
+            if text in app_aliases:
+                return app_aliases[text]
+            # Try partial match
+            for alias, real_name in app_aliases.items():
+                if alias in text or text in alias:
+                    return real_name
+            # Return cleaned original
+            return clean_slot(text)
 
         # High-precision regex rules
         # (Pattern, IntentType, Slots Extraction Logic)
         self.rules = [
-            (r"(open|launch|start|run) (.+)", IntentType.SYSTEM_OPEN_APP, lambda m: {"app_name": clean_slot(m.group(2))}),
-            (r"(close|quit|exit|kill) (.+)", IntentType.SYSTEM_CLOSE_APP, lambda m: {"app_name": clean_slot(m.group(2))}),
-            (r"(delete|remove|erase) (.+)", IntentType.FILE_DELETE, lambda m: {"file_name": clean_slot(m.group(2))}),
-            (r"(search for|find) (.+) in browser", IntentType.BROWSER_SEARCH, lambda m: {"query": clean_slot(m.group(2))}),
-            # Vision & Screen OCR
-            (r"(?:read|ocr)(?:\s+(?:the|what's|what is|whats|text|written|on|in|from|at|the)){0,4}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Read {m.group(1)}"}),
-            (r"(?:read|ocr|display)(?:\s+(?:the|what's|what is|whats)){0,3}\s+screen", IntentType.SCREEN_OCR, lambda m: {}),
-            (r"(?:look|see|read|ocr)\s+(?:at|what's|what is|whats|the|this){0,3}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Look at {m.group(1)}"}),
+            # ═══════════════════════════════════════════════════════════
+            # SYSTEM CONTROL (Volume, Brightness, etc.)
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:set|change|adjust)?\s*(?:the)?\s*volume\s*(?:to|at)?\s*(\d+)(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"volume {m.group(1)}"}),
+            (r"(increase|raise|turn up|up)\s+(?:the)?\s*volume(?:\s+(?:by|to))?\s*(\d+)?(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"volume up {m.group(2) or '10'}"}),
+            (r"(decrease|lower|turn down|down)\s+(?:the)?\s*volume(?:\s+(?:by|to))?\s*(\d+)?(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"volume down {m.group(2) or '10'}"}),
+            (r"(mute|unmute|silence)(?:\s+(?:the)?\s*(?:volume|sound|audio))?", IntentType.SYSTEM_CONTROL, lambda m: {"command": m.group(1)}),
+            (r"(?:set|change|adjust)?\s*(?:the)?\s*brightness\s*(?:to|at)?\s*(\d+)(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"brightness {m.group(1)}"}),
+            (r"(increase|raise|turn up)\s+(?:the)?\s*brightness(?:\s+(?:by|to))?\s*(\d+)?(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"brightness up {m.group(2) or '10'}"}),
+            (r"(decrease|lower|turn down|dim)\s+(?:the)?\s*brightness(?:\s+(?:by|to))?\s*(\d+)?(?:%|percent)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": f"brightness down {m.group(2) or '10'}"}),
+            (r"(shutdown|shut down|restart|reboot|sleep|lock)(?:\s+(?:the)?\s*(?:system|computer|pc))?", IntentType.SYSTEM_CONTROL, lambda m: {"command": m.group(1).replace(" ", "")}),
+            (r"(?:what(?:'s| is)?\s+(?:the)?)?\s*(?:current)?\s*(?:battery|power)\s*(?:level|status|percent(?:age)?)?", IntentType.SYSTEM_CONTROL, lambda m: {"command": "battery"}),
+            (r"(?:take\s+a?)?\s*screenshot", IntentType.SYSTEM_CONTROL, lambda m: {"command": "screenshot"}),
+            
+            # ═══════════════════════════════════════════════════════════
+            # APPLICATION CONTROL  
+            # ═══════════════════════════════════════════════════════════
+            (r"(open|launch|start|run)\s+(.+)", IntentType.SYSTEM_OPEN_APP, lambda m: {"app_name": normalize_app_name(m.group(2))}),
+            (r"(close|quit|exit|kill)\s+(.+)", IntentType.SYSTEM_CLOSE_APP, lambda m: {"app_name": normalize_app_name(m.group(2))}),
+            
+            # ═══════════════════════════════════════════════════════════
+            # FILE OPERATIONS
+            # ═══════════════════════════════════════════════════════════
+            (r"(delete|remove|erase)\s+(.+)", IntentType.FILE_DELETE, lambda m: {"file_name": clean_slot(m.group(2))}),
+            (r"(search for|find|look for)\s+(.+?)\s+(?:in|on)\s+(?:the\s+)?browser", IntentType.BROWSER_SEARCH, lambda m: {"query": clean_slot(m.group(2))}),
+            (r"(?:google|search|search for|look up)\s+(.+)", IntentType.BROWSER_SEARCH, lambda m: {"query": clean_slot(m.group(1))}),
+            
+            # ═══════════════════════════════════════════════════════════
+            # MEMORY OPERATIONS
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:remember|memorize|note|save)\s+(?:that\s+)?(.+)", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1)}),
+            (r"(?:what|do you)\s+(?:do you\s+)?(?:know|remember)\s+(?:about\s+)?(.+)", IntentType.MEMORY_READ, lambda m: {"query": m.group(1)}),
+            (r"(?:forget|erase|delete)\s+(?:about\s+)?(?:the\s+)?(?:memory|fact|info)(?:\s+(?:about|of))?\s*(.+)?", IntentType.MEMORY_FORGET, lambda m: {"content": m.group(1) or ""}),
+            
+            # ═══════════════════════════════════════════════════════════
+            # VISION & SCREEN (Order matters! Screen patterns first)
+            # ═══════════════════════════════════════════════════════════
+            # SCREEN patterns (most specific - must come first)
+            (r"(?:read|ocr|display)(?:\s+(?:the|what's|what is|whats|text|on)){0,3}\s+screen", IntentType.SCREEN_OCR, lambda m: {}),
             (r"(?:describe|analyze|what's|whats|what is)(?:\s+(?:on|the|what is on|what's on)){0,4}\s+screen", IntentType.SCREEN_DESCRIBE, lambda m: {}),
+            
+            # QR Code scanning
+            (r"(?:scan|read)(?:\s+(?:a|the|this)){0,2}\s+(?:qr|barcode|qr code)", IntentType.VISION_QR, lambda m: {}),
+
+            # Gesture control
+            (r"(?:enable|start|turn on)(?:\s+(?:the|hand)){0,2}\s+(?:gesture|gestures|hand control)", IntentType.VISION_GESTURE, lambda m: {}),
+
+            # Emotion detection
+            (r"(?:what(?:'s| is)|detect|read|analyze)(?:\s+(?:my|the|his|her)){0,2}\s+(?:emotion|mood|feeling|expression)", IntentType.VISION_EMOTION, lambda m: {}),
+
+            # Posture check
+            (r"(?:check|monitor|analyze)(?:\s+(?:my|the)){0,2}\s+(?:posture|sitting|stance)", IntentType.VISION_POSTURE, lambda m: {}),
+
+            # Video recording
+            (r"(?:record|start recording|capture)(?:\s+(?:a|the)){0,2}\s+(?:video|footage)(?:\s+for\s+(\d+)\s*(?:seconds?|s))?", IntentType.VISION_RECORD, lambda m: {"duration": m.group(1) or "10"}),
+
+            # Deep scan (explicit)
+            (r"(?:deep|full|complete)(?:\s+(?:vision|camera)){0,2}\s+(?:scan|analysis|mode)", IntentType.VISION_DEEP_SCAN, lambda m: {}),
+
+            # Screen Analysis (High priority before generic OCR)
+            (r"(?:read|ocr|extract)(?:\s+(?:the|this|my)){0,2}\s+screen", IntentType.SCREEN_OCR, lambda m: {}),
+            (r"(?:analyze|describe|examine)(?:\s+(?:the|this|my)){0,2}\s+screen", IntentType.SCREEN_DESCRIBE, lambda m: {}),
+
+            # VISION OCR patterns (more general - after screen)
+            (r"(?:read|ocr)(?:\s+(?:the|what's|what is|whats|text|written|on|in|from|at|the)){0,4}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Read {m.group(1)}"}),
+            (r"(?:look|see|read|ocr)\s+(?:at|what's|what is|whats|the|this){0,3}\s+(.+)", IntentType.VISION_OCR, lambda m: {"prompt": f"Look at {m.group(1)}"}),
+            # Vision describe/detect/people
             (r"(?:describe|what do|what's|whats|what is|analyze)(?:\s+(?:you|the|visible|in front|of|me|this)){0,5}\s+(?:see|visible|happening|in front|at|scene|around)", IntentType.VISION_DESCRIBE, lambda m: {}),
             (r"(?:detect|find|what|list)(?:\s+(?:all|the|some|visible|any)){0,3}\s+(?:objects|things|items)(?:\s+(?:there|in front|visible|of me|here)){0,4}", IntentType.VISION_OBJECTS, lambda m: {}),
-            (r"(?:who|identify|recognize)(?:\s+(?:is |are |this |the )){0,3}(?:people|person|one|individual)(?:\s+(?:there|in front|visible|here)){0,4}", IntentType.VISION_PEOPLE, lambda m: {}),
+            (r"(?:who|identify|recognize)(?:\s+(?:is |are |this |the )){0,3}(?:people|person|one|individual|he|she|they|that|this)(?:\s+(?:there|in front|visible|here)){0,4}", IntentType.VISION_PEOPLE, lambda m: {}),
             (r"(?:repair|fix|reset|restart)(?:\s+(?:the|your|my)){0,2}\s+(?:vision|eyes|ocr|camera|sight)", IntentType.VISION_REPAIR, lambda m: {}),
             (r"(?:i am|my name is|remember me as|this is)\s+(.+)", IntentType.VISION_LEARN_FACE, lambda m: {"name": clean_slot(m.group(1))}),
             (r"(?:close|stop|shut|turn off|disable)(?:\s+(?:the|your)){0,2}\s+(?:camera|vision|eyes|sight|looking)", IntentType.VISION_CLOSE, lambda m: {}),
             (r"(?:analyze|describe|understand|tell me about)(?:\s+(?:the|this)){0,2}\s+(?:scene|environment|room|context)", IntentType.ADVANCED_SCENE_ANALYSIS, lambda m: {}),
+            (r"(?:scan|read)(?:\s+(?:this|the|a)){0,2}\s+(?:document|paper|page|sheet)", IntentType.VISION_DOCUMENT, lambda m: {}),
+            (r"(?:what|how)(?:\s+am|is)?\s+i\s+(?:doing|looking|sitting|standing)", IntentType.VISION_ACTIVITY, lambda m: {}),
+            (r"(?:track|follow|focus\s+on)(?:\s+(?:the|this|that|a)){0,2}\s+(.+)", IntentType.VISION_TRACK, lambda m: {"object_name": clean_slot(m.group(1))}),
+            # (r"(?:highlight|point\s+out)(?:\s+(?:the|this|that|a)){0,2}\s+(.+)", IntentType.VISION_HIGHLIGHT, lambda m: {"object_name": clean_slot(m.group(1))}),
+            
+            # ═══════════════════════════════════════════════════════════
+            # WEB INTELLIGENCE
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:what's|whats|what is|get|tell me)(?:\s+(?:the|latest)){0,2}\s+(?:news|headlines)", IntentType.WEB_NEWS, lambda m: {}),
+            (r"(?:what's|whats|what is|check)(?:\s+(?:the|today's)){0,2}\s+weather", IntentType.WEB_WEATHER, lambda m: {}),
+            (r"(?:deep\s+research|research|deep\s+dive|analyze|summary|summarize)(?:\s+on)?\s+(.+)", IntentType.WEB_RESEARCH, lambda m: {"topic": m.group(1)}),
+
+            # ═══════════════════════════════════════════════════════════
+            # TASK MANAGEMENT & PRODUCTIVITY
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:set|start|create)(?:\s+a)?\s+timer(?:\s+for)?\s+(.+)", IntentType.TASK_TIMER, lambda m: {"duration": m.group(1)}),
+            (r"(?:remind|set\s+a\s+reminder)(?:\s+me)?(?:\s+to)?\s+(.+)", IntentType.TASK_REMINDER, lambda m: {"task": m.group(1)}),
+            
+            # TODO List
+            (r"(?:add|put)(?:\s+(?:to|on)){0,2}(?:\s+(?:my|the)){0,2}\s+(?:todo|to-do|tasks)(?:\s+list)?\s+(.+)", IntentType.TODO_ADD, lambda m: {"item": m.group(1)}),
+            (r"(?:what's|whats|what is|show|list)(?:\s+(?:on|my|the)){0,2}\s+(?:todo|to-do|tasks)(?:\s+list)?", IntentType.TODO_LIST, lambda m: {}),
+            (r"(?:remove|delete|check\s+off)(?:\s+(?:from|on)){0,2}(?:\s+(?:my|the)){0,2}\s+(?:todo|to-do|tasks)(?:\s+list)?\s+(.+)", IntentType.TODO_DELETE, lambda m: {"item": m.group(1)}),
+            
+            # Document & Code Analysis
+            (r"(?:summarize|summary)(?:\s+(?:the|this))?\s+(?:document|file|pdf)\s+(?:at|path)?\s*(.+)", IntentType.DOC_SUMMARIZE, lambda m: {"file_path": m.group(1).strip()}),
+            (r"(?:ask|question)(?:\s+(?:about|the|this|on))?\s+(?:document|file|pdf)\s*(.+)", IntentType.DOC_ASK, lambda m: {"query": m.group(1).strip()}),
+            (r"(?:explain|how\s+does|what\s+does)(?:\s+(?:the|this|that))?\s+code\s+(?:in|at)?\s*(.+)", IntentType.CODE_EXPLAIN, lambda m: {"file_path": m.group(1).strip()}),
+            (r"(?:analyze|scan|check)(?:\s+(?:the|this|that))?\s+project\s+(?:at|path)?\s*(.+)", IntentType.PROJECT_ANALYZE, lambda m: {"root_path": m.group(1).strip()}),
+
+            # ═══════════════════════════════════════════════════════════
+            # CONNECTIVITY & SYSTEM EXTRAS
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:empty|clear)(?:\s+(?:the|my)){0,2}\s+recycle\s+bin", IntentType.SYSTEM_RECYCLE_BIN, lambda m: {}),
+            (r"(?:connect|join)(?:\s+to)?\s+wifi\s+(.+)", IntentType.SYSTEM_WIFI_CONNECT, lambda m: {"ssid": m.group(1)}),
+            (r"(?:disconnect|off|turn\s+off)\s+wifi", IntentType.SYSTEM_WIFI_DISCONNECT, lambda m: {}),
+            (r"(?:turn\s+)?(?:on|off|enable|disable)\s+bluetooth", IntentType.SYSTEM_BLUETOOTH, lambda m: {"state": "on" if "on" in m.group(0) or "enable" in m.group(0) else "off"}),
+            (r"(?:turn\s+)?(?:on|off|enable|disable)\s+hotspot", IntentType.SYSTEM_HOTSPOT, lambda m: {"state": "on" if "on" in m.group(0) or "enable" in m.group(0) else "off"}),
         ]
 
     def parse(self, text: str, context: Optional[str] = None) -> Intent:
@@ -58,7 +205,6 @@ class NLUEngine:
         )
 
     def _check_rules(self, text: str) -> Optional[Intent]:
-        text_lower = text.lower()
         text_lower = text.lower()
         for pattern, intent_type, slot_extractor in self.rules:
             # Use search instead of match to handle prefixes like "can you", "jarvis", "please"

@@ -1,99 +1,102 @@
+"""
+SpeechOut - Voice output for Jarvis
+Uses Edge TTS for natural neural voice with pyttsx3 fallback.
+"""
 import threading
 import queue
-import pyttsx3
-import pythoncom
 import time
 
+# Try to import Edge TTS engine first
+try:
+    from core.voice.edge_tts_engine import EdgeTTSEngine, EDGE_TTS_AVAILABLE
+except ImportError:
+    try:
+        from jarvis.core.voice.edge_tts_engine import EdgeTTSEngine, EDGE_TTS_AVAILABLE
+    except ImportError:
+        EDGE_TTS_AVAILABLE = False
+        EdgeTTSEngine = None
+
+
 class SpeechOut:
+    """
+    Voice output handler with neural TTS for natural speech.
+    Falls back to pyttsx3 if Edge TTS unavailable.
+    """
+    
     def __init__(self):
         self.speech_queue = queue.Queue()
         self.is_speaking = False
-        self.should_stop = threading.Event() # This was the original interrupt mechanism
-        self.interrupt = False # New interrupt flag as per instruction
+        self.interrupt = False
         self.worker_thread = None
-        self.completion_callback = None
         self.last_spoken = None
         self.last_spoken_time = 0
         
-        # Start the dedicated speech worker thread
-        self.worker_thread = threading.Thread(target=self._speech_worker, daemon=True)
-        self.worker_thread.start()
+        # Try to use Edge TTS (much better quality)
+        self.use_edge_tts = EDGE_TTS_AVAILABLE
+        self.edge_engine = None
         
-        print("SpeechOut: Initialized with queue-based threading")
-
-    def _speech_worker(self):
-        """Dedicated worker thread that processes speech queue"""
-        import datetime
+        if self.use_edge_tts:
+            try:
+                self.edge_engine = EdgeTTSEngine(voice="guy")
+                print("SpeechOut: Using Edge TTS (neural voice)")
+            except Exception as e:
+                print(f"SpeechOut: Edge TTS failed ({e}), falling back to pyttsx3")
+                self.use_edge_tts = False
         
-        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"\n{datetime.datetime.now()}: Worker thread STARTED\n")
+        if not self.use_edge_tts:
+            # Fallback: Start pyttsx3 worker thread
+            self.worker_thread = threading.Thread(target=self._pyttsx3_worker, daemon=True)
+            self.worker_thread.start()
+            print("SpeechOut: Using pyttsx3 (SAPI5)")
+    
+    def _pyttsx3_worker(self):
+        """Fallback worker using pyttsx3 (legacy)."""
+        import pyttsx3
+        import pythoncom
         
         try:
-            # Initialize COM for Windows SAPI5
             pythoncom.CoInitialize()
-            
-            with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                f.write(f"{datetime.datetime.now()}: COM initialized\n")
             
             while True:
                 try:
-                    # Wait for speech text from queue
-                    text, callback = self.speech_queue.get(timeout=1)
-                    
-                    if text is None:  # Shutdown signal
+                    item = self.speech_queue.get(timeout=1)
+                    if item is None:
                         break
                     
+                    text, callback = item
+                    if not text:
+                        if callback:
+                            callback()
+                        continue
+                    
                     self.is_speaking = True
-                    self.should_stop.clear() # Original interrupt mechanism
-                    self.interrupt = False # Reset new interrupt flag for new utterance
-                    
-                    self.interrupt = False # Reset new interrupt flag for new utterance
-                    
+                    self.interrupt = False
                     self.last_spoken = text
                     self.last_spoken_time = time.time()
                     
                     print(f"Jarvis (Voice): {text}")
                     
-                    with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                        f.write(f"{datetime.datetime.now()}: Processing: {text[:50]}...\n")
+                    # Initialize engine fresh each time
+                    engine = pyttsx3.init(driverName='sapi5')
+                    engine.setProperty('rate', 160)  # Slower, warmer
+                    engine.setProperty('volume', 0.95)
                     
-                    # Initialize engine FRESH for each utterance to avoid state issues
-                    try:
-                        engine = pyttsx3.init(driverName='sapi5')
-                        engine.setProperty('rate', 175)
-                        engine.setProperty('volume', 1.0)
-                        
-                        # Select male voice
-                        voices = engine.getProperty('voices')
-                        for voice in voices:
-                            if "david" in voice.name.lower() or "male" in voice.name.lower():
-                                engine.setProperty('voice', voice.id)
-                                print(f"Using voice: {voice.name}")
-                                break
-                                
-                        # Speak
-                        engine.say(text)
-                        engine.runAndWait()
-                        
-                        # Explicitly clean up
-                        del engine
-                        
-                        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                            f.write(f"{datetime.datetime.now()}: Speech completed successfully\n")
-                            
-                    except Exception as e_engine:
-                        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                            f.write(f"{datetime.datetime.now()}: Engine error: {e_engine}\n")
-                        print(f"Engine error: {e_engine}")
+                    # Select voice - prefer Zira (female, smoother) or David
+                    voices = engine.getProperty('voices')
+                    for voice in voices:
+                        # Try Zira first (smoother), then David
+                        if "zira" in voice.name.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
+                        elif "david" in voice.name.lower():
+                            engine.setProperty('voice', voice.id)
                     
-                    # Check if we were interrupted (using the new flag)
-                    if not self.interrupt: # Check the new interrupt flag
-                        # Speech completed successfully
-                        if callback:
-                            callback()
-                    else:
-                        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                            f.write(f"{datetime.datetime.now()}: Speech interrupted\n")
+                    engine.say(text)
+                    engine.runAndWait()
+                    del engine
+                    
+                    if not self.interrupt and callback:
+                        callback()
                     
                     self.is_speaking = False
                     self.speech_queue.task_done()
@@ -101,85 +104,80 @@ class SpeechOut:
                 except queue.Empty:
                     continue
                 except Exception as e:
-                    with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                        f.write(f"{datetime.datetime.now()}: ERROR in worker loop: {e}\n")
-                    
                     print(f"SpeechOut Error: {e}")
                     self.is_speaking = False
-                    if 'callback' in locals() and callback:
-                        callback()
-                    
+            
             pythoncom.CoUninitialize()
             
         except Exception as e:
-            with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-                f.write(f"{datetime.datetime.now()}: FATAL ERROR in worker thread: {e}\n")
-            
             print(f"SpeechOut Worker Fatal Error: {e}")
-            import traceback
-            traceback.print_exc()
-
+    
     def speak(self, text, on_complete=None):
         """
-        Queue text to be spoken
+        Speak text using neural TTS.
         
         Args:
             text: Text to speak
-            on_complete: Optional callback function to call when speech completes
+            on_complete: Optional callback when speech completes
         """
-        # Log to file
-        import datetime
-        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"{datetime.datetime.now()}: SpeechOut.speak() called\n")
-            f.write(f"  Text: {text[:100] if text else 'None'}...\n")
-            f.write(f"  Has callback: {on_complete is not None}\n")
-            f.write(f"  Queue size: {self.speech_queue.qsize()}\n")
-        
-        if not text:
+        if not text or not text.strip():
             if on_complete:
                 on_complete()
             return
         
-        # Clear the queue if there's pending speech (interrupt)
-        while not self.speech_queue.empty():
-            try:
-                self.speech_queue.get_nowait()
-                self.speech_queue.task_done()
-            except queue.Empty:
-                break
+        # Track for anti-repetition
+        self.last_spoken = text
+        self.last_spoken_time = time.time()
         
-        # Add new speech to queue
-        self.speech_queue.put((text, on_complete))
+        print(f"Jarvis (Voice): {text}")
         
-        with open("c:/Users/lenovo/jarvis_debug.log", "a", encoding="utf-8") as f:
-            f.write(f"  Added to queue, new size: {self.speech_queue.qsize()}\n")
-
+        if self.use_edge_tts and self.edge_engine:
+            # Use Edge TTS (async, non-blocking)
+            self.edge_engine.speak(text)
+            # Call completion callback after a delay (estimated)
+            if on_complete:
+                # Estimate ~100ms per word
+                word_count = len(text.split())
+                delay = max(0.5, word_count * 0.1)
+                threading.Timer(delay, on_complete).start()
+        else:
+            # Fallback to pyttsx3 queue
+            while not self.speech_queue.empty():
+                try:
+                    self.speech_queue.get_nowait()
+                    self.speech_queue.task_done()
+                except queue.Empty:
+                    break
+            
+            self.speech_queue.put((text, on_complete))
+    
     def stop(self):
-        """
-        Stop current speech and clear queue
-        """
-        print("SpeechOut: Stopping speech...")
-        
-        # Set interrupt flag
+        """Stop current speech immediately."""
+        print("SpeechOut: Stopping...")
         self.interrupt = True
         
-        # Clear the queue
-        while not self.speech_queue.empty():
-            try:
-                self.speech_queue.get_nowait()
-                self.speech_queue.task_done()
-            except queue.Empty:
-                break
-        
-        print(f"SpeechOut: Cleared queue, interrupt flag set")
-        
-        # Try to stop the engine if it's running (this is tricky with pyttsx3 in a thread)
-        # We rely on the worker checking 'self.interrupt' after each sentence, 
-        # but for long sentences, we can't easily break mid-utterance without a more complex engine wrapper.
-        # However, clearing the queue ensures no FURTHER speech happens.
-
+        if self.use_edge_tts and self.edge_engine:
+            self.edge_engine.stop()
+        else:
+            # Clear pyttsx3 queue
+            while not self.speech_queue.empty():
+                try:
+                    self.speech_queue.get_nowait()
+                    self.speech_queue.task_done()
+                except queue.Empty:
+                    break
+    
+    def is_busy(self) -> bool:
+        """Check if currently speaking."""
+        if self.use_edge_tts and self.edge_engine:
+            return self.edge_engine.is_speaking()
+        return self.is_speaking or not self.speech_queue.empty()
+    
     def shutdown(self):
-        """Shutdown the speech worker"""
-        self.speech_queue.put((None, None))  # Send shutdown signal
-        if self.worker_thread:
-            self.worker_thread.join(timeout=2)
+        """Shutdown speech output."""
+        if self.use_edge_tts and self.edge_engine:
+            self.edge_engine.stop()
+        else:
+            self.speech_queue.put(None)
+            if self.worker_thread:
+                self.worker_thread.join(timeout=2)

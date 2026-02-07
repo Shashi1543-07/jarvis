@@ -6,14 +6,14 @@ import queue
 import wave
 import os
 from core.voice.vad import VoiceActivityDetector
-from core.voice.tts import TextToSpeechEngine
+from core.voice.edge_tts_engine import EdgeTTSEngine
 from core.voice.stt import SpeechToTextEngine
 from core.router import Router
 
 class RealtimeVoicePipeline:
     def __init__(self):
         self.vad = VoiceActivityDetector(aggressiveness=3)
-        self.tts = TextToSpeechEngine()
+        self.tts = EdgeTTSEngine()
         self.stt = SpeechToTextEngine()
         self.router = Router()
         

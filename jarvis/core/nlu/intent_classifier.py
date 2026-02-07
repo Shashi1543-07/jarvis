@@ -2,84 +2,135 @@
 import re
 from typing import Dict, Any, Optional
 from ..context_manager import get_context_manager
+from .engine import NLUEngine
+from .intents import IntentType
 
 class IntentClassifier:
     """
-    Advanced Intent Router implementing strict hierarchy:
-    1. VISION (if context active or explicit trigger)
-    2. DIALOGUE (follow-ups)
-    3. SYSTEM (control)
-    4. ACTION (apps/web)
-    5. CHAT (fallback)
+    Unified Intent Classifier - Single source of truth for intent classification.
+    
+    Architecture:
+    1. Uses NLUEngine for regex rules + LLM-based slot extraction
+    2. Applies context-aware overrides (vision active, dialogue history)
+    3. Returns complete intent dict with slots
+    
+    This replaces the fragmented 3-classifier system with one unified flow.
     """
     
     def __init__(self):
         self.context = get_context_manager()
+        self.nlu_engine = NLUEngine()  # Core slot extraction engine
         
     def classify(self, text: str) -> Dict[str, Any]:
+        """
+        Classify user input and extract slots in a single pass.
+        
+        Returns:
+            Dict with keys: intent, confidence, slots, requires_confirmation, 
+                            clarification_question, original_text
+        """
         text_lower = text.lower().strip()
         
         # ---------------------------------------------------------
-        # 1. VISION LAYER (Highest Priority)
+        # STEP 1: Get base classification from NLUEngine (regex + LLM)
         # ---------------------------------------------------------
-        vision_triggers = ["see", "look", "watch", "view", "camera", "eyes", "recognize", "identify", "detect", "read", "scan"]
-        vision_queries = ["who is that", "what is that", "what do you see", "describe scene", "who is in front"]
+        intent = self.nlu_engine.parse(text)
+        result = intent.to_dict()
         
-        # Check explicit triggers OR active vision context with vague queries
-        is_vision_trigger = any(w in text_lower for w in vision_triggers)
-        is_vision_query = any(q in text_lower for q in vision_queries)
+        # ---------------------------------------------------------
+        # STEP 2: Apply context-aware overrides
+        # ---------------------------------------------------------
+        result = self._apply_context_overrides(result, text_lower)
         
-        # Context-aware override: "Who is he?" when camera is on -> Vision
-        is_contextual_vision = False
+        # ---------------------------------------------------------
+        # STEP 3: Validate and normalize
+        # ---------------------------------------------------------
+        result = self._normalize_result(result)
+        
+        return result
+    
+    def _apply_context_overrides(self, result: Dict[str, Any], text_lower: str) -> Dict[str, Any]:
+        """
+        Apply context-aware intelligence on top of base classification.
+        This handles cases where context changes the meaning of ambiguous queries.
+        """
+        current_intent = result.get("intent", "")
+        
+        # ---------------------------------------------------------
+        # VISION CONTEXT OVERRIDE
+        # If camera is active, bias ambiguous queries toward vision actions
+        # ---------------------------------------------------------
         if self.context.vision.is_active:
-            # If camera is on, "who is he", "what is this" should map to vision
-            pronouns = [" he", " she", " it", " that", " this"]
-            if any(p in text_lower for p in pronouns) and ("who" in text_lower or "what" in text_lower):
-                 is_contextual_vision = True
-
-        if is_vision_trigger or is_vision_query or is_contextual_vision:
-            # Sub-classification for Vision
-            if "read" in text_lower or "text" in text_lower:
-                return {"type": "VISION_OCR", "confidence": 0.95}
-            elif "who" in text_lower or "identify" in text_lower or "person" in text_lower:
-                return {"type": "VISION_PEOPLE", "confidence": 0.95}
-            elif "describe" in text_lower:
-                return {"type": "VISION_DESCRIBE", "confidence": 0.95}
-            elif "close" in text_lower or "stop" in text_lower or "off" in text_lower:
-                return {"type": "VISION_CLOSE", "confidence": 1.0}
-            else:
-                 # Default to scene description or object detection
-                return {"type": "VISION_DESCRIBE", "confidence": 0.9}
-
-        # ---------------------------------------------------------
-        # 2. DIALOGUE / CONTEXT LAYER
-        # ---------------------------------------------------------
-        # Check for clarification answers or follow-ups
-        # (Simplified for now - can be expanded)
+            # Pronouns + question words when camera is on -> Vision
+            pronouns = [" he", " she", " it", " that", " this", " they"]
+            question_words = ["who", "what"]
+            
+            has_pronoun = any(p in text_lower for p in pronouns)
+            has_question = any(q in text_lower for q in question_words)
+            
+            if has_pronoun and has_question:
+                # Context-aware override to vision
+                if "who" in text_lower:
+                    result["intent"] = "VISION_PEOPLE"
+                    result["confidence"] = 0.92
+                    result["slots"]["prompt"] = result.get("original_text", text_lower)
+                elif "what" in text_lower:
+                    result["intent"] = "VISION_DESCRIBE"
+                    result["confidence"] = 0.90
+                    result["slots"]["prompt"] = result.get("original_text", text_lower)
         
         # ---------------------------------------------------------
-        # 3. SYSTEM LAYER
+        # DIALOGUE CONTEXT OVERRIDE
+        # Handle follow-up questions that reference previous intent
         # ---------------------------------------------------------
-        if any(w in text_lower for w in ["shutdown", "restart", "reboot", "sleep"]):
-             return {"type": "SYSTEM_CONTROL", "confidence": 0.9, "requires_confirmation": True}
-             
-        if "volume" in text_lower or "brightness" in text_lower:
-             return {"type": "SYSTEM_CONTROL", "confidence": 0.95}
+        if current_intent in ["CONVERSATION", "UNKNOWN"]:
+            last_intent = self.context.dialogue.last_intent
+            
+            # If last intent was vision and user says "again" or "more"
+            if last_intent and "VISION" in last_intent:
+                follow_up_words = ["again", "more", "another", "else"]
+                if any(w in text_lower for w in follow_up_words):
+                    result["intent"] = last_intent
+                    result["confidence"] = 0.85
+                    result["slots"]["prompt"] = "Continue from last result"
+        
+        return result
+    
+    def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ensure result has all required fields with proper types.
+        """
+        # Ensure slots is always a dict
+        if "slots" not in result or result["slots"] is None:
+            result["slots"] = {}
+            
+        # Normalize intent name (handle enum values vs strings)
+        intent = result.get("intent", "UNKNOWN")
+        if hasattr(intent, 'value'):
+            result["intent"] = intent.value
+        elif isinstance(intent, str):
+            result["intent"] = intent.upper()
+        
+        # GRACEFUL DEGRADATION: Convert UNKNOWN to CONVERSATION
+        # This ensures unmatched queries fallback to LLM chat gracefully
+        if result["intent"] == "UNKNOWN":
+            result["intent"] = "CONVERSATION"
+            result["confidence"] = 0.5  # Low confidence for fallback
+            
+        # Ensure confidence is a float
+        result["confidence"] = float(result.get("confidence", 0.0))
+        
+        # Ensure boolean fields exist
+        result["requires_confirmation"] = bool(result.get("requires_confirmation", False))
+        
+        return result
 
-        # ---------------------------------------------------------
-        # 4. ACTION LAYER
-        # ---------------------------------------------------------
-        if "open" in text_lower or "launch" in text_lower:
-             return {"type": "SYSTEM_OPEN_APP", "confidence": 0.85}
-             
-        if "search" in text_lower or "google" in text_lower:
-             return {"type": "BROWSER_SEARCH", "confidence": 0.9}
 
-        # ---------------------------------------------------------
-        # 5. CHAT FALLBACK
-        # ---------------------------------------------------------
-        return {"type": "CHAT", "confidence": 0.6}
+# Singleton accessor - returns fresh instance each time for context updates
+_classifier_instance = None
 
-# Singleton accessor
-def get_classifier():
-    return IntentClassifier()
+def get_classifier() -> IntentClassifier:
+    global _classifier_instance
+    if _classifier_instance is None:
+        _classifier_instance = IntentClassifier()
+    return _classifier_instance

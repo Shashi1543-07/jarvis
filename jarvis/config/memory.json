@@ -18,68 +18,7 @@
             "general": []
         }
     },
-    "short_term": [
-        {
-            "timestamp": "2026-02-05T13:18:31.243480",
-            "user": "Identify the person.",
-            "ai": "I don't see anyone in front of me right now.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:18:54.269465",
-            "user": "Can't you see me? It's right in the front of you.",
-            "ai": "Man in yellow shirt.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:19:09.478120",
-            "user": "Recognize that person.",
-            "ai": "People: I don’t see anyone in front of me right now.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:19:28.950331",
-            "user": "initialised space recognition.",
-            "ai": "A man in a yellow shirt standing in front of a window.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T13:19:59.747392",
-            "user": "Fuck up!",
-            "ai": "Okay, Shashi, let’s get this straight. Spill.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T14:29:20.034062",
-            "user": "and lies the scene.",
-            "ai": "Blue background with a white border.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T14:29:33.411279",
-            "user": "Recognize the person.",
-            "ai": "People: I don’t see anyone in front of me right now.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T14:29:58.228366",
-            "user": "And we'll see you now what you...",
-            "ai": "Man standing in front of a mirror.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T14:30:49.502331",
-            "user": "Initialize base recon.",
-            "ai": "Alright, let’s do that. I’ve got the mapping protocols kicking in, ready to analyze. Let’s see what we’ve got.",
-            "mood": "positive"
-        },
-        {
-            "timestamp": "2026-02-05T14:31:23.874273",
-            "user": "Identify the person in the camera.",
-            "ai": "Shashi Shekhar Mishra",
-            "mood": "positive"
-        }
-    ],
+    "short_term": [],
     "sessions": [
         {
             "timestamp": "2025-12-01T19:20:27.622950",
@@ -106,8 +45,32 @@
     },
     "working_memory": [
         {
-            "entity": "Identify",
-            "timestamp": "2026-02-05T14:31:23.874242"
+            "entity": "Microsoft",
+            "timestamp": "2026-02-07T22:17:54.678602"
+        },
+        {
+            "entity": "Edge",
+            "timestamp": "2026-02-07T22:17:54.678602"
+        },
+        {
+            "entity": "Yard",
+            "timestamp": "2026-02-07T22:17:54.678602"
+        },
+        {
+            "entity": "Microsoft",
+            "timestamp": "2026-02-07T22:18:07.545311"
+        },
+        {
+            "entity": "Edge",
+            "timestamp": "2026-02-07T22:18:07.545311"
+        },
+        {
+            "entity": "Bandicard",
+            "timestamp": "2026-02-07T22:18:07.545311"
+        },
+        {
+            "entity": "Debye",
+            "timestamp": "2026-02-07T22:18:07.545311"
         }
     ],
     "episodic_memory": [
@@ -146,6 +109,18 @@
             "summary": "Interaction highlights: User: can you recognize me?\nAI: a man sitting on the floor with his feet up\nMood: positive\nUser: and recognize person.\nAI: Man with a beard, yellow shirt.\nMood: positive\nUser: analyze the scene.\nAI: Man sitting on bed, drinking water.\nMood: positive\nUser: Read the text.\nAI: 3\nMood: positive\nUser: Read what you can see on the bottle.\nAI: Visual Details: 3\n\nMood: positive",
             "mood": "positive",
             "importance": 1.0
+        },
+        {
+            "date": "2026-02-07T21:46:15.183959",
+            "summary": "Interaction highlights: User: I suppose your vision.\nAI: Right, let’s dive in. I’ve been compiling a profile of your… *ahem*… unique perspective. Think of it as a very detailed, slightly obsessive, assessment.\nMood: positive\nUser: Hey shut your eyes.\nAI: Camera closed.\nMood: positive\nUser: Ejalvus, you are so good at doing this pro.\nAI: Alright, Shekhar, let’s see what’s brewing. I’ve got a feeling you’re about to unleash some interesting thoughts.\nMood: positive\nUser: Do you know the name of my father?\nAI: I couldn't recall anything about 'the name of my father?'.\nMood: positive\nUser: Where's my partner?\nAI: I’ve got that for you, Sir.  Let’s see if we can track her down.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-07T22:18:17.233326",
+            "summary": "Interaction highlights: User: Turn on Bluetooth.\nAI: Error executing command: toggle_bluetooth() got an unexpected keyword argument 'text'\nMood: positive\nUser: Turn on Wi-Fi.\nAI: Okay, let’s do this! I’ve got that for you, Sir. Let’s get the signal flowing.\nMood: positive\nUser: And as always, open our spot.\nAI: Attempted to open our spot via GUI automation.\nMood: positive\nUser: lose Microsoft Edge Yard.\nAI: Okay, let’s tackle this. Losing Edge Yard is a bit like losing a particularly stylish sock – a minor inconvenience, but a significant disruption to your workflow. I’ve got a strategy brewing, shall we?\nMood: positive\nUser: Microsoft Edge Bandicard Debye.\nAI: Seriously? You’re wrestling with a Bandicard? That’s… a lot of effort for a little digital trinket.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
         }
     ],
     "semantic_memory": {
@@ -163,6 +138,41 @@
                 "confirmed": false,
                 "mentions": 2,
                 "last_seen": "2026-01-21T20:53:26.624283"
+            },
+            {
+                "fact": "likes this",
+                "confidence": 0.7,
+                "confirmed": false,
+                "mentions": 2,
+                "last_seen": "2026-02-07T21:02:42.264096"
+            },
+            {
+                "fact": "likes risk and you",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-07T21:25:50.012135"
+            },
+            {
+                "fact": "likes to hear a joke",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-07T21:26:13.007521"
+            },
+            {
+                "fact": "likes to hear some joke",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-07T21:39:52.097494"
+            },
+            {
+                "fact": "likes and analyze the scene",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-07T21:42:39.903730"
             }
         ]
     },
@@ -262,6 +272,24 @@
             "emotion": "happy",
             "intensity": 1,
             "context": "good."
+        },
+        {
+            "timestamp": "2026-02-07T21:26:08.995629",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "i would like to hear a joke.  can you please tell one?"
+        },
+        {
+            "timestamp": "2026-02-07T21:39:43.979885",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "jarvis, i would like to hear some joke. can you please tell me something?"
+        },
+        {
+            "timestamp": "2026-02-07T21:45:19.414071",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "ejalvus, you are so good at doing this pro."
         }
     ],
     "personality_profile": {
@@ -270,12 +298,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-02-05T14:33:32.783723"
+        "last_analysis": "2026-02-07T22:18:03.735232"
     },
     "conversation_patterns": {
-        "other": 43,
-        "question": 9,
-        "statement": 47
+        "other": 44,
+        "question": 11,
+        "statement": 110
     },
     "relationships": {
         "John": {
@@ -309,7 +337,7 @@
         },
         "Active during 22:00 with general activities": {
             "frequency": "routine",
-            "last_recorded": "2026-01-19T22:00:10.927177"
+            "last_recorded": "2026-02-07T22:18:03.737113"
         },
         "Active during 0:00 with learning activities": {
             "frequency": "routine",
@@ -326,20 +354,30 @@
         "Active during 14:00 with general activities": {
             "frequency": "routine",
             "last_recorded": "2026-02-05T14:33:32.787263"
+        },
+        "Active during 21:00 with general activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-07T21:45:49.367069"
         }
     },
     "interests": [
-        "pizza?",
-        "technology",
-        "memory.json,",
+        "this",
         "it.",
-        "ai",
-        "it",
+        "memory.json,",
+        "and analyze the scene",
         "pizza",
-        "to",
+        "to know if you could see it",
+        "ai",
+        "risk and you",
         "pizza and italian food",
+        "to hear a joke",
+        "you",
+        "to",
+        "to hear some joke",
+        "pizza?",
         "programming",
-        "to know if you could see it"
+        "technology",
+        "it"
     ],
     "favorites": {
         "music": [

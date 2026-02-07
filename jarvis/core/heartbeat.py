@@ -62,7 +62,7 @@ class Heartbeat:
 
             # 2. Real-time Gesture Actions (Volume Control)
             gesture_res = vision_actions.get_latest_gesture()
-            if gesture_res.get("success") and gesture_res.get("gesture") == "POINTING":
+            if gesture_res and gesture_res.get("success") and gesture_res.get("gesture") == "POINTING":
                 y = gesture_res.get("details", {}).get("y", 0.5)
                 # Map Y (0.0 top to 1.0 bottom) to Volume (100 to 0)
                 target_vol = int((1.0 - y) * 100)

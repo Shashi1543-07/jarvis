@@ -316,10 +316,17 @@ def enable_hotspot():
 def disable_hotspot():
     print("Disabling Hotspot...")
     try:
+        import subprocess
         subprocess.run(["start", "ms-settings:network-mobilehotspot"], shell=True)
         return "Opened Hotspot settings."
     except Exception as e:
         return f"Failed to disable hotspot: {e}"
+
+def handle_hotspot(state="on"):
+    """Dispatcher for Hotspot state"""
+    if "off" in state.lower() or "disable" in state.lower():
+        return disable_hotspot()
+    return enable_hotspot()
 
 def restart_pc():
     print("Restarting PC...")
@@ -681,6 +688,9 @@ def handle_system_control(**kwargs):
             elif "decrease" in cmd:
                return decrease_brightness()
             return adjust_brightness()
+        
+        if "battery" in cmd: return battery_status()
+        if "performance" in cmd or "status" in cmd: return system_performance()
          
     # 3. Fallback to System Info (safe default) if no specific command identified
     # But do NOT crash if args are present

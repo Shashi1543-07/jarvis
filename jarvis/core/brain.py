@@ -23,29 +23,19 @@ class Brain:
         print("Brain initialized with Local protocols.")
 
     def think(self, text, short_term_memory=None, long_term_memory=None):
-        # local_brain is now initialized in __init__, so this check is no longer needed
-        # if not self.local_brain:
-        #     from core.memory import Memory
-        #     self.local_brain = LocalBrain(Memory())
-
-        # 1. Classify the user intent
-        classification = self.classifier.classify(text)
-        print(f"DEBUG: Intent Classified as: {classification}")
+        """
+        Generate a conversational response for the user's input.
         
-        # Emit classification to GUI if callback registered
-        if self.on_intent_classified:
-            try:
-                # Use simple confidence based on classification type
-                confidence = 0.95 if classification != "CHAT" else 0.75
-                self.on_intent_classified(classification, confidence)
-            except Exception as e:
-                print(f"Brain: Failed to emit intent to GUI: {e}")
-
-        # 2. Learn from this interaction
+        NOTE: Intent classification is now handled by Router's unified IntentClassifier.
+        Brain.think() is only called for CONVERSATION/CHAT intents as a fallback.
+        """
+        print(f"DEBUG: Brain generating conversational response for: {text[:50]}...")
+        
+        # Learn from this interaction
         self.behavior_learning.learn_from_interaction(text, "", datetime.datetime.now())
 
-        # 3. Route everything to local brain (which handles templates + Ollama reasoning)
-        local_response = self.local_brain.process(text, classification)
+        # Generate conversational response via LocalBrain
+        local_response = self.local_brain.generate_chat_response(text)
 
         # Ensure it's JSON for the router
         if isinstance(local_response, dict):
@@ -55,7 +45,6 @@ class Brain:
             # Handle briefing action directly
             if local_response.get("action") == "generate_daily_briefing":
                 briefing = self.briefing_manager.generate_report()
-                # Return a structured response for the briefing
                 return json.dumps({"action": "speak", "text": briefing, "type": "briefing"})
 
             return json.dumps(local_response)

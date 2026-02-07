@@ -8,7 +8,7 @@ from .voice.state_machine_enhanced import RaceConditionSafeVoiceController, Voic
 from .voice.mic import Microphone
 from .voice.vad import VoiceActivityDetector
 from .voice.stt import SpeechToTextEngine
-from .voice.tts import TextToSpeechEngine
+from .voice.edge_tts_engine import EdgeTTSEngine, EDGE_TTS_AVAILABLE
 from .router import Router
 from .voice.aec_enhanced import EnhancedAECWithNR
 from .voice.wake_word import MultiKeywordWakeWordDetector
@@ -44,8 +44,9 @@ class AudioEngine:
         # Core processing engines
         self.stt = SpeechToTextEngine()
         print("AudioEngine: STT ready.")
-        self.tts = TextToSpeechEngine(on_audio_chunk=self._on_tts_chunk)
-        print("AudioEngine: TTS ready.")
+        # Use Edge TTS for natural neural voice
+        self.tts = EdgeTTSEngine(voice="guy", on_audio_chunk=self._on_tts_chunk)
+        print(f"AudioEngine: TTS ready (Edge TTS: {EDGE_TTS_AVAILABLE}).")
 
         if router:
             self.router = router
@@ -58,6 +59,14 @@ class AudioEngine:
         self.router.on_intent_classified = self._on_intent_from_router
         
         print("AudioEngine: Router ready.")
+
+        # Async Processing
+        self.request_queue = queue.Queue()
+        self.response_queue = queue.Queue()
+        self.current_request_id = 0
+
+        self.thinking_thread = threading.Thread(target=self._thinking_worker, daemon=True)
+        self.thinking_thread.start()
 
         self.is_running = False
 
@@ -165,6 +174,75 @@ class AudioEngine:
             except Exception as e:
                 print(f"AudioEngine: Failed to forward intent to GUI: {e}")
 
+    def _thinking_worker(self):
+        """Worker thread for router logic"""
+        print("AudioEngine: Thinking worker started")
+        while True:
+            try:
+                item = self.request_queue.get()
+                if item is None: # Sentinel
+                    break
+
+                req_id, text = item
+
+                try:
+                    response = self.router.route(text)
+                    self.response_queue.put((req_id, {"type": "response", "data": response}))
+                except Exception as e:
+                    print(f"AudioEngine: Error in background thinking: {e}")
+                    self.response_queue.put((req_id, {"type": "error", "error": str(e)}))
+
+                self.request_queue.task_done()
+            except Exception as e:
+                print(f"AudioEngine: Thinking worker error: {e}")
+
+    def _process_thinking_result(self, req_id, result):
+        """Process the result from the background thread in the main loop"""
+        if req_id != self.current_request_id:
+            print(f"AudioEngine: Ignoring stale result (ID: {req_id} != {self.current_request_id})")
+            return
+
+        if result.get("type") == "error":
+            print(f"AudioEngine: Error processing request: {result.get('error')}")
+            self.state_controller.safe_state_transition(VoiceState.LISTENING)
+            return
+
+        response = result.get("data")
+        action = response.get("action")
+        reply = response.get("text") or response.get("reply")
+
+        if action in ("go_to_sleep", "enable_sleep_mode"):
+            self.state_controller.safe_state_transition(VoiceState.SLEEP)
+            self.tts.start_tts_stream(
+                "Going to sleep. Say wake up to reactivate me."
+            )
+            return
+
+        if reply:
+            self.state_controller.safe_state_transition(VoiceState.SPEAKING)
+            self.speech_start_time = time.time()
+
+            # Calculate and emit latency
+            if self.request_start_time:
+                latency_ms = int((time.time() - self.request_start_time) * 1000)
+                print(f"AudioEngine: Response latency: {latency_ms}ms")
+                if self.on_latency_update:
+                    try:
+                        self.on_latency_update(latency_ms)
+                    except Exception as e:
+                        print(f"AudioEngine: GUI latency update failed: {e}")
+                self.request_start_time = None
+
+            if self.on_text_update:
+                try:
+                    self.on_text_update("jarvis", reply)
+                except Exception as e:
+                    print(f"AudioEngine: GUI chat update failed: {e}")
+            self.tts.start_tts_stream(reply)
+        else:
+            print("AudioEngine: Empty response (filler handled) → LISTENING")
+            self.state_controller.safe_state_transition(VoiceState.LISTENING)
+
     # =====================================================================
     # PUBLIC START/STOP
     # =====================================================================
@@ -210,6 +288,9 @@ class AudioEngine:
         self.is_running = False
         self.mic.stop()
         self.tts.stop_tts_stream()
+        # self.thinking_thread is daemon, will die with process
+        # But we can try to be nice
+        self.request_queue.put(None)
 
     # =====================================================================
     # ENHANCED MAIN LOOP
@@ -429,42 +510,9 @@ class AudioEngine:
                                             print(f"AudioEngine: GUI chat update failed: {e}")
                                             # Don't disable callback, just log the error
 
-                                    response = self.router.route(text)
-                                    action = response.get("action")
-                                    reply = response.get("text") or response.get("reply")
-
-                                    if action in ("go_to_sleep", "enable_sleep_mode"):
-                                        self.state_controller.safe_state_transition(VoiceState.SLEEP)
-                                        self.tts.start_tts_stream(
-                                            "Going to sleep. Say wake up to reactivate me."
-                                        )
-                                        continue
-
-                                    if reply:
-                                        self.state_controller.safe_state_transition(VoiceState.SPEAKING)
-                                        self.speech_start_time = time.time()
-                                        
-                                        # Calculate and emit latency
-                                        if self.request_start_time:
-                                            latency_ms = int((time.time() - self.request_start_time) * 1000)
-                                            print(f"AudioEngine: Response latency: {latency_ms}ms")
-                                            if self.on_latency_update:
-                                                try:
-                                                    self.on_latency_update(latency_ms)
-                                                except Exception as e:
-                                                    print(f"AudioEngine: GUI latency update failed: {e}")
-                                            self.request_start_time = None
-                                        
-                                        if self.on_text_update:
-                                            try:
-                                                self.on_text_update("jarvis", reply)
-                                            except Exception as e:
-                                                print(f"AudioEngine: GUI chat update failed: {e}")
-                                                # Don't disable callback, just log the error
-                                        self.tts.start_tts_stream(reply)
-                                    else:
-                                        print("AudioEngine: Empty response (filler handled) → LISTENING")
-                                        self.state_controller.safe_state_transition(VoiceState.LISTENING)
+                                    # Submit thinking task to worker
+                                    self.current_request_id += 1
+                                    self.request_queue.put((self.current_request_id, text))
 
                                 else:
                                     self.state_controller.safe_state_transition(VoiceState.LISTENING)
@@ -478,22 +526,48 @@ class AudioEngine:
                 # THINKING MODE - Enhanced with speaker verification during processing
                 # ----------------------------------------------------------
                 elif state == VoiceState.THINKING:
+                    # Check for results FIRST (priority over interruption)
+                    try:
+                        req_id, result = self.response_queue.get_nowait()
+                        self._process_thinking_result(req_id, result)
+                        self.thinking_interrupt_frames = 0  # Reset interrupt counter
+                        continue
+                    except queue.Empty:
+                        pass
+
+                    # Check for user interruption (but require sustained speech)
                     chunk = self.mic.read_chunk()
-                    if chunk and self.vad.is_speech(chunk):
-                        # Verify speaker during thinking mode to allow interruption
-                        is_auth, speaker_id, conf = self._verify_speaker(chunk)
+                    if chunk:
+                        rms = self._calculate_rms(chunk)
+                        # Require BOTH: high RMS AND VAD speech detection
+                        # This prevents false triggers from background noise
+                        if rms > self.RMS_THRESHOLD * 2 and self.vad.is_speech(chunk):
+                            if not hasattr(self, 'thinking_interrupt_frames'):
+                                self.thinking_interrupt_frames = 0
+                            self.thinking_interrupt_frames += 1
+                            
+                            # Require at least 5 consecutive speech frames (more than single noise spike)
+                            if self.thinking_interrupt_frames >= 5:
+                                # Verify speaker during thinking mode to allow interruption
+                                is_auth, speaker_id, conf = self._verify_speaker(chunk)
 
-                        interrupt_allowed = (
-                            is_auth or
-                            not self.speaker_auth.is_access_control_enabled() or
-                            self.allow_interruption_by_unknown
-                        )
+                                interrupt_allowed = (
+                                    is_auth or
+                                    not self.speaker_auth.is_access_control_enabled() or
+                                    self.allow_interruption_by_unknown
+                                )
 
-                        if interrupt_allowed:
-                            self.stt.clear_buffer()
-                            self.stt.buffer_frame(chunk)
-                            self.state_controller.safe_state_transition(VoiceState.LISTENING)
-                            self.silence_frames = 0
+                                if interrupt_allowed:
+                                    print("AudioEngine: User interrupted thinking (sustained speech detected)")
+                                    self.stt.clear_buffer()
+                                    self.stt.buffer_frame(chunk)
+                                    self.state_controller.safe_state_transition(VoiceState.LISTENING)
+                                    self.silence_frames = 0
+                                    self.thinking_interrupt_frames = 0
+                        else:
+                            # Reset counter if no speech detected
+                            if hasattr(self, 'thinking_interrupt_frames'):
+                                self.thinking_interrupt_frames = 0
 
                     time.sleep(0.01)
 

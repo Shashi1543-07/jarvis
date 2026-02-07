@@ -80,92 +80,193 @@ class LocalBrain:
         self.nlu = NLUEngine(self.ollama)
         self.memory_authority = MemoryAuthority()  # Memory authority layer
 
-        # Jarvis-style conversational templates (Fast response)
+        # Jarvis-style conversational templates (Friendly & Varied)
+        # TRIPLED variety to prevent repetition
         self.templates = {
-            "GREETING": ["Hello Sir, standing by.", "At your service, Sir.", "Welcome back. How can I assist today?", "Systems online and ready.", "Ready for your command, Sir."],
-            "THANKS": ["My pleasure, Sir.", "Always happy to help.", "Of course.", "Anytime.", "Just doing my job, Sir."],
-            "WHO_CREATED": ["I was designed by you, Sir, to be the ultimate assistant.", "I am a product of your engineering, Sir.", "You are my creator.", "Created by you, for you, Sir."],
-            "OFFLINE_FALLBACK": ["I'm currently operating in offline mode for efficiency.", "My web brain is idle, so I'm handling this locally.", "Processing locally to preserve bandwidth, Sir.", "Server connection unavailable, sir. Utilizing local protocols."],
-            "NOT_UNDERSTOOD": ["I'm afraid I didn't quite catch that, Sir.", "Could you repeat that? Local processing is a bit narrow today.", "I'm having trouble analyzing that locally. Perhaps rephrase?"],
+            "GREETING": [
+                "Hey there! What can I do for you?",
+                "Good to see you! How can I help?",
+                "Hello! Ready when you are.",
+                "What's up? I'm all ears.",
+                "At your service! What's on your mind?",
+                "Hey! Got something for me?",
+                "Welcome back! What are we working on?",
+                "Here and ready! Fire away.",
+                "I'm listening. What do you need?",
+                "Hey hey! What's the plan?",
+                "Standing by and attentive!",
+                "Right here! What can I help with?",
+            ],
+            "THANKS": [
+                "Happy to help!",
+                "Anytime!",
+                "Of course!",
+                "My pleasure!",
+                "No problem at all!",
+                "Glad I could help!",
+                "That's what I'm here for!",
+                "You got it!",
+                "Sure thing!",
+                "Always!",
+                "Don't mention it!",
+                "Absolutely!",
+            ],
+            "WHO_CREATED": [
+                "I was designed by you, to be the ultimate assistant.",
+                "You're my creator! I'm a product of your engineering.",
+                "Built by you, for you.",
+                "I'm your creation - designed to help.",
+            ],
+            "OFFLINE_FALLBACK": [
+                "I'm handling this locally for speed.",
+                "Processing offline for efficiency.",
+                "Running on local protocols.",
+                "Using local processing right now.",
+                "Handling this on-device.",
+            ],
+            "NOT_UNDERSTOOD": [
+                "Hmm, I didn't quite catch that. Could you rephrase?",
+                "I'm not sure I understood. Mind saying that differently?",
+                "That one went over my head. Try again?",
+                "Sorry, I missed that. What did you mean?",
+            ],
             "SYSTEM_STATUS": [
-                "All systems nominal, Sir.",
-                "All systems green, Sir.",
-                "Operational parameters optimal.",
-                "Running at peak efficiency, Sir."
+                "All systems good!",
+                "Everything's running smoothly.",
+                "Systems are green across the board.",
+                "All nominal here!",
+                "Running at full capacity!",
+            ],
+            "ACKNOWLEDGEMENT": [
+                "Got it!",
+                "On it!",
+                "Consider it done.",
+                "Right away!",
+                "Working on it!",
+                "One moment...",
+                "Let me handle that.",
+                "Coming right up!",
             ]
         }
 
-        # Emotional response templates
+        # Emotional response templates (expanded variety)
         self.emotional_templates = {
             "positive": [
-                "Glad to hear that, Sir!",
-                "That's wonderful to know!",
-                "Excellent! I'm delighted to assist.",
-                "Fantastic! I love helping with positive things."
+                "That's great to hear!",
+                "Wonderful!",
+                "Excellent!",
+                "Love that energy!",
+                "Fantastic!",
+                "Nice!",
             ],
             "negative": [
-                "I'm sorry to hear that, Sir.",
-                "That sounds challenging. How can I help?",
-                "I understand. I'm here to assist you.",
-                "That's unfortunate. Let me see if I can help."
+                "I'm sorry to hear that.",
+                "That sounds tough.",
+                "I understand. How can I help?",
+                "That's rough. Let me see what I can do.",
             ],
             "neutral": [
-                "I see, Sir.",
+                "I see.",
                 "Understood.",
-                "Interesting. How can I assist?",
-                "Noted. What else can I do for you?"
+                "Got it.",
+                "Noted.",
+                "Alright.",
             ]
         }
+        
+        # ANTI-REPETITION: Track recently used responses per category
+        self.recent_responses = {}  # category -> list of recent texts
+        self.response_history_size = 5  # Don't repeat within last N responses
 
-    def process(self, text, classification):
-        original_text = text  # Keep original for memory writes
-        text = text.lower().strip()  # Normalize text for pattern matching
+    def _old_process_deprecated(self, text, classification):
+        """
+        NOTE: This method has been replaced by generate_chat_response().
+        The old NLU parsing logic is now handled by Router's unified IntentClassifier.
+        This stub is kept only for reference - will be removed in future.
+        """
+        pass
+    
+    def _get_unique_response(self, category: str, name_replacement: str = None) -> str:
+        """
+        Get a response from category that hasn't been used recently.
+        Prevents repetitive greetings/acknowledgements.
         
-        # ═══════════════════════════════════════════════════════════
-        # PHASE B: INTENT CLASSIFICATION (NLU ENGINE)
-        # ═══════════════════════════════════════════════════════════
+        Args:
+            category: Template category key (e.g., "GREETING", "THANKS")
+            name_replacement: Optional name to replace "Sir" with
+            
+        Returns:
+            A response string that hasn't been used in last N responses
+        """
+        templates = self.templates.get(category, [""])
         
-        # Use NLU Engine to parse intent
-        intent = self.nlu.parse(original_text)
+        # Get recent responses for this category
+        recent = self.recent_responses.get(category, [])
         
-        from .nlu.intents import IntentType
+        # Find responses not recently used
+        available = [t for t in templates if t not in recent]
         
-        # If it's a specific system intent, return the Intent Object (as dict)
-        if intent.intent_type not in [IntentType.CONVERSATION, IntentType.UNKNOWN, IntentType.CLARIFICATION_REQUIRED]:
-            return intent.to_dict()
+        # If all used recently, use any (but prefer least recent)
+        if not available:
+            available = templates
+            # Clear history to allow reuse
+            self.recent_responses[category] = []
+        
+        # Pick random from available
+        response = random.choice(available)
+        
+        # Track this response
+        if category not in self.recent_responses:
+            self.recent_responses[category] = []
+        self.recent_responses[category].append(response)
+        
+        # Keep history limited
+        if len(self.recent_responses[category]) > self.response_history_size:
+            self.recent_responses[category].pop(0)
+        
+        # Apply name replacement if needed
+        if name_replacement:
+            response = response.replace("Sir", name_replacement)
+        
+        return response
 
-        if intent.intent_type == IntentType.CLARIFICATION_REQUIRED:
-            return {"text": intent.clarification_question or "Could you clarify that, Sir?"}
-
-        # ═══════════════════════════════════════════════════════════
-        # PHASE C: CONVERSATIONAL FALLBACK (TEMPLATES / CHAT LLM)
-        # ═══════════════════════════════════════════════════════════
+    def generate_chat_response(self, text: str) -> dict:
+        """
+        Generate a pure conversational response via templates or Ollama LLM.
+        This is the primary method for handling CONVERSATION/CHAT intents.
         
-        # 0. Handle FILLERS (Quiet acknowledgement or silence)
+        Args:
+            text: User's input text
+            
+        Returns:
+            dict with 'text' key containing the response
+        """
+        text_lower = text.lower().strip()
+        
+        # Handle FILLERS (Quiet acknowledgement or silence)
         fillers = ["mmm", "hmm", "okay", "uh", "ah", "yep", "yup", "got it", "nice"]
-        if text in fillers or len(text) < 3:
+        if text_lower in fillers or len(text_lower) < 3:
             return {"text": ""} 
 
         # Analyze user's emotional state from input
-        self.analyze_user_emotion(text)
+        self.analyze_user_emotion(text_lower)
         
         # Retrieve user info for personalization
         user_info = self.memory.get("user_info") or {}
-        preferred_names = user_info.get("preferred_names", ["Sir"])
-        selected_name = random.choice(preferred_names)
+        preferred_names = user_info.get("preferred_names", [""])
+        selected_name = random.choice(preferred_names) if preferred_names else ""
 
-        # Template handling for greetings/thanks
-        if any(x in text for x in ["hello", "hi", "hey"]) and len(text.split()) < 3:
-            mood = self.memory.get_current_mood()
-            emotional_response = random.choice(self.emotional_templates[mood])
-            greeting = random.choice(self.templates["GREETING"]).replace("Sir", selected_name)
-            return {"text": f"{greeting} {emotional_response}"}
+        # Template handling for greetings (with anti-repetition)
+        if any(x in text_lower for x in ["hello", "hi", "hey"]) and len(text_lower.split()) < 3:
+            greeting = self._get_unique_response("GREETING", selected_name)
+            return {"text": greeting}
             
-        if "thanks" in text or "thank you" in text:
-            return {"text": random.choice(self.templates["THANKS"]).replace("Sir", selected_name)}
+        # Template handling for thanks (with anti-repetition)
+        if "thanks" in text_lower or "thank you" in text_lower:
+            thanks = self._get_unique_response("THANKS", selected_name)
+            return {"text": thanks}
 
         # Default Fallback to Ollama (Guarded & Grounded)
-        # Get comprehensive memory context for Ollama
         context_str = self.memory.get_memory_context() if hasattr(self.memory, 'get_memory_context') else ""
         short_term_context = self.memory.get_short_term_as_string() if hasattr(self.memory, 'get_short_term_as_string') else ""
 
@@ -177,7 +278,7 @@ class LocalBrain:
             "RULES:\n"
             "1. NO REPETITION. Never repeat the user's input or say 'At your service' every turn.\n"
             "2. BE NATURAL. Use contractions (I'll, you're, won't). Avoid 'Sir, I have...'. Say 'I've got that for you, Sir.'\n"
-            "3. BE PROACTIVE. If you detect a context like work or study, offer help like 'Shall I pull up your relevant docs?' or 'The desk lamp is off, Sir, shall I adjust the lighting?'\n"
+            "3. BE PROACTIVE. If you detect a context like work or study, offer help.\n"
             "4. VARIETY. Use diverse sentence structures. Don't start every message with the user's name.\n"
             "5. NO SCRIPTED SPEECH. Talk like you're thinking. If a task takes time, acknowledge it wittily.\n"
             f"\nRecent Conversation History:\n{short_term_context}\n"
@@ -185,7 +286,7 @@ class LocalBrain:
             "CRITICAL: Be concise but vibrant. NO flowery robotic greetings. Plain text ONLY."
         )
 
-        ollama_response = self.ollama.chat_with_context(original_text, context_str, system_instructions)
+        ollama_response = self.ollama.chat_with_context(text, context_str, system_instructions)
 
         if "ERROR_CONNECTION" in ollama_response:
              return {"text": f"I can't reach the local brain server, {selected_name}. Please ensure Ollama is running."}
@@ -195,6 +296,22 @@ class LocalBrain:
              return {"text": random.choice(self.templates["OFFLINE_FALLBACK"]).replace("Sir", selected_name)}
 
         return {"text": ollama_response}
+
+    def process(self, text, classification):
+        """
+        DEPRECATED: Use Router's unified classification instead.
+        This method is kept for backward compatibility only.
+        
+        New code should call generate_chat_response() directly for conversational responses.
+        """
+        import warnings
+        warnings.warn(
+            "LocalBrain.process() is deprecated. Use Router for intent routing, "
+            "and LocalBrain.generate_chat_response() for chat.",
+            DeprecationWarning, 
+            stacklevel=2
+        )
+        return self.generate_chat_response(text)
 
     def analyze_user_emotion(self, text):
         """Analyze user's emotional state from their input"""

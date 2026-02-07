@@ -91,8 +91,44 @@ class Router:
             "VISION_LEARN_FACE": vision_actions.finalize_face_learning,
             "VISION_CLOSE": vision_actions.close_camera,
             "ADVANCED_SCENE_ANALYSIS": vision_actions.get_scene_context,
+            "VISION_QR": vision_actions.scan_qr_code,
+            "VISION_GESTURE": vision_actions.gesture_control,
+            "VISION_EMOTION": vision_actions.detect_emotion,
+            "VISION_POSTURE": vision_actions.check_posture,
+            "VISION_RECORD": vision_actions.record_video,
+            "VISION_DEEP_SCAN": vision_actions.deep_scan,
+            "VISION_DOCUMENT": vision_actions.document_scan,
+            "VISION_ACTIVITY": vision_actions.activity_recognition,
+            "VISION_TRACK": vision_actions.object_tracking,
+            "VISION_HIGHLIGHT": vision_actions.highlight_object,
             "SCREEN_OCR": vision_actions.read_screen,
             "SCREEN_DESCRIBE": vision_actions.describe_screen,
+
+            # Web Intelligence
+            "WEB_NEWS": web_actions.get_news,
+            "WEB_WEATHER": web_actions.get_weather,
+            "WEB_RESEARCH": web_actions.deep_research,
+
+            # Task Management & Productivity
+            "TASK_TIMER": lambda duration=None, **kwargs: productivity_actions.set_timer(
+                (int(duration.split()[0]) * 60) if duration and "min" in duration else 
+                (int(duration.split()[0]) if duration and duration.split()[0].isdigit() else 60)
+            ),
+            "TASK_REMINDER": productivity_actions.create_reminder,
+            "TODO_ADD": productivity_actions.todo_add,
+            "TODO_LIST": productivity_actions.todo_list,
+            "TODO_DELETE": productivity_actions.todo_delete,
+            "DOC_SUMMARIZE": productivity_actions.summarize_document,
+            "DOC_ASK": productivity_actions.ask_about_document,
+            "CODE_EXPLAIN": productivity_actions.explain_code,
+            "PROJECT_ANALYZE": productivity_actions.analyze_project,
+
+            # Connectivity & System Extras
+            "SYSTEM_RECYCLE_BIN": system_actions.empty_recycle_bin,
+            "SYSTEM_WIFI_CONNECT": system_actions.connect_wifi,
+            "SYSTEM_WIFI_DISCONNECT": system_actions.disconnect_wifi,
+            "SYSTEM_BLUETOOTH": system_actions.toggle_bluetooth,
+            "SYSTEM_HOTSPOT": system_actions.handle_hotspot,
         }
 
     # --- Memory Handlers ---
@@ -155,7 +191,7 @@ class Router:
             return {"text": f"Plan execution result: {result['message']}", "action": "PLAN_COMPLETE"}
 
         # -----------------------------------------------------------------
-        # NEW: HIERARCHICAL INTENT ROUTING
+        # UNIFIED INTENT ROUTING (Single classification pass with slots)
         # -----------------------------------------------------------------
         from .nlu.intent_classifier import get_classifier
         from .context_manager import get_context_manager
@@ -163,19 +199,20 @@ class Router:
         classifier = get_classifier()
         ctx = get_context_manager()
         
-        # 1. Classify
+        # 1. Classify - IntentClassifier now returns complete intent with slots
         intent_result = classifier.classify(text)
-        intent_type = intent_result.get("type") or intent_result.get("intent")
+        intent_type = intent_result.get("intent", "CONVERSATION")
         confidence = intent_result.get("confidence", 0.0)
+        slots = intent_result.get("slots", {})
         
-        print(f"Router: Classified as {intent_type} ({confidence:.2f})")
+        print(f"Router: Classified as {intent_type} (conf: {confidence:.2f}) with slots: {slots}")
         
         # 2. Update Context
         ctx.update_dialogue(text, "", intent_type, confidence)
         
         # 3. Execution Logic
-        if intent_type == "CHAT":
-            # Fallback to LLM (Brain)
+        if intent_type in ["CHAT", "CONVERSATION", "UNKNOWN"]:
+            # Fallback to LLM (Brain) for conversational responses
             llm_response = self.brain.think(text, self.memory.short_term, self.memory.long_term)
             try:
                 clean = llm_response.replace("```json", "").replace("```", "").strip()
@@ -185,11 +222,8 @@ class Router:
                     response_data = {"action": "speak", "text": clean}
             except:
                 response_data = {"action": "speak", "text": llm_response}
-
         else:
-            # Execute Specific Intent
-            intent_result["intent"] = intent_type 
-            if "slots" not in intent_result: intent_result["slots"] = {}
+            # Execute Specific Intent - slots already extracted by IntentClassifier
             intent_result["original_text"] = text
             
             res = self._handle_intent_object(intent_result)
@@ -197,7 +231,7 @@ class Router:
             # Handle complex results (Summarization)
             if isinstance(res, dict) and res.get("needs_summary"):
                 print("Generating conversational response for complex Intent result...")
-                final_reply = self.brain.process_action_results(text, [{"action": res["action"], "result": res["result"]}])
+                final_reply = self.brain.process_action_results(text, [{"action": res.get("action", intent_type), "result": res.get("result")}])
                 
                 ctx.update_dialogue(text, final_reply, intent_type, confidence)
                 self.memory.remember_conversation(text, final_reply)
@@ -205,7 +239,8 @@ class Router:
             
             # Handle direct results
             if isinstance(res, dict) and "text" in res:
-                 ctx.update_dialogue(text, res["text"], intent_type, confidence)
+                ctx.update_dialogue(text, res["text"], intent_type, confidence)
+                self.memory.remember_conversation(text, res["text"])
 
             return res
         # Fallback to Legacy Action-Dictionary Handling
