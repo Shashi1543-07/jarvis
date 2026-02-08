@@ -261,7 +261,7 @@ def system_performance():
 
 # --- New Connectivity Actions ---
 
-def connect_wifi(ssid=None, password=None):
+def connect_wifi(ssid=None, password=None, **kwargs):
     """Connect to a WiFi network"""
     import subprocess
     print(f"Connecting to WiFi: {ssid}")
@@ -279,7 +279,7 @@ def connect_wifi(ssid=None, password=None):
     except Exception as e:
         return f"Failed to connect to WiFi: {e}"
 
-def disconnect_wifi():
+def disconnect_wifi(**kwargs):
     """Disconnect from WiFi"""
     import subprocess
     print("Disconnecting WiFi...")
@@ -289,7 +289,7 @@ def disconnect_wifi():
     except Exception as e:
         return f"Failed to disconnect WiFi: {e}"
 
-def toggle_bluetooth(state="on"):
+def toggle_bluetooth(state="on", **kwargs):
     """Toggle Bluetooth (Windows 10/11 is tricky via cmd, using powershell or placeholder)"""
     # Note: Windows doesn't have a simple native CLI for bluetooth toggle without 3rd party tools
     # We can try PowerShell UWP calls but it's complex. 
@@ -303,8 +303,9 @@ def toggle_bluetooth(state="on"):
     except Exception as e:
         return f"Failed to toggle Bluetooth: {e}"
 
-def enable_hotspot():
+def enable_hotspot(**kwargs):
     """Enable Mobile Hotspot"""
+    import subprocess
     # Requires admin and specific powershell scripts usually
     print("Enabling Hotspot...")
     try:
@@ -313,7 +314,7 @@ def enable_hotspot():
     except Exception as e:
         return f"Failed to enable hotspot: {e}"
 
-def disable_hotspot():
+def disable_hotspot(**kwargs):
     print("Disabling Hotspot...")
     try:
         import subprocess
@@ -322,7 +323,7 @@ def disable_hotspot():
     except Exception as e:
         return f"Failed to disable hotspot: {e}"
 
-def handle_hotspot(state="on"):
+def handle_hotspot(state="on", **kwargs):
     """Dispatcher for Hotspot state"""
     if "off" in state.lower() or "disable" in state.lower():
         return disable_hotspot()
@@ -340,7 +341,7 @@ def log_out():
         os.system("shutdown /l")
     return "Logging out..."
 
-def empty_recycle_bin():
+def empty_recycle_bin(**kwargs):
     import winshell
     try:
         winshell.recycle_bin().empty(confirm=False, show_progress=False, sound=False)
@@ -479,7 +480,7 @@ def open_application(app_name):
     except Exception as e:
         return f"Failed to open {app_name}: {e}"
 
-def close_application(app_name):
+def close_application(app_name, **kwargs):
     """Close a specific application by name"""
     try:
         if platform.system() == "Windows":
@@ -493,15 +494,34 @@ def close_application(app_name):
                 "powershell": "powershell.exe",
                 "explorer": "explorer.exe",
                 "chrome": "chrome.exe",
+                "google chrome": "chrome.exe",
                 "firefox": "firefox.exe",
                 "edge": "msedge.exe",
+                "microsoft edge": "msedge.exe",
+                "brave": "brave.exe",
+                "brave browser": "brave.exe",
+                "opera": "opera.exe",
+                "vivaldi": "vivaldi.exe",
                 "vscode": "code.exe",
                 "vs code": "code.exe",
+                "visual studio code": "code.exe",
                 "code": "code.exe",
                 "spotify": "spotify.exe",
                 "steam": "steam.exe",
-                "discord": "discord.exe"
+                "discord": "discord.exe",
+                "telegram": "telegram.exe",
+                "whatsapp": "whatsapp.exe",
+                "slack": "slack.exe",
+                "teams": "teams.exe",
+                "microsoft teams": "teams.exe",
+                "zoom": "zoom.exe",
+                "vlc": "vlc.exe",
+                "word": "winword.exe",
+                "excel": "excel.exe",
+                "powerpoint": "powerpnt.exe",
+                "outlook": "outlook.exe",
             }
+
             
             # Clean app name (remove trailing punctuation)
             clean_name = app_name.lower().strip().rstrip('.')

@@ -129,33 +129,183 @@ class Router:
             "SYSTEM_WIFI_DISCONNECT": system_actions.disconnect_wifi,
             "SYSTEM_BLUETOOTH": system_actions.toggle_bluetooth,
             "SYSTEM_HOTSPOT": system_actions.handle_hotspot,
+
+            # File Operations - Previously Missing
+            "FILE_SEARCH": file_actions.search_file,
+            "FILE_CREATE": file_actions.create_file,
+
+            # Media Control - Previously Missing
+            "MEDIA_CONTROL": self._handle_media_control,
+
+            # Vision Document Scan - Previously Missing
+            "VISION_DOCUMENT": vision_actions.document_scan,
+
+            # Task Management - Previously Missing
+            "TASK_MANAGEMENT": productivity_actions.create_reminder,
+
+            # Memory Intents - Wire to router handlers
+            "MEMORY_WRITE": self._handle_memory_write,
+            "MEMORY_READ": self._handle_memory_read,
+            "MEMORY_FORGET": self._handle_memory_forget,
         }
 
     # --- Memory Handlers ---
     def _handle_memory_write(self, content=None, **kwargs):
         """Handle explicit memory write requests"""
-        from .memory.entries import MemoryType
-        if not content: return "I didn't catch what you wanted me to remember."
+        import re
         
-        # Determine strict intent from slot if possible, else LTM
-        result = self.memory_manager.propose_write(content, MemoryType.LONG_TERM, confidence=1.0)
-        return result["message"]
+        # Get full original text as fallback
+        full_text = kwargs.get("text", "")
+        
+        # If content is weak (it/this/that), use full text instead
+        weak_words = ["it", "this", "that", ""]
+        if content and content.lower().strip() in weak_words:
+            content = full_text
+        
+        if not content:
+            content = full_text
+        if not content:
+            return "I didn't catch what you wanted me to remember."
+        
+        # Clean up the content - remove "Hey Jarvis" prefix and memorize suffix
+        content = re.sub(r"^(?:hey\s+)?jarvis[,\s]*", "", content, flags=re.IGNORECASE)
+        content = re.sub(r",?\s*(?:kindly\s+)?(?:memorize|remember)\s+(?:it|this|that)\.?$", "", content, flags=re.IGNORECASE)
+        content = content.strip()
+        
+        content_lower = content.lower()
+
+        
+        # Check for relationship patterns and store directly
+        relationship_patterns = [
+            (r"(?:my\s+)?father(?:'s\s+name)?\s+is\s+(.+)", "father"),
+            (r"(?:my\s+)?mother(?:'s\s+name)?\s+is\s+(.+)", "mother"),
+            (r"(?:my\s+)?(?:girlfriend|gf)(?:'s\s+name)?\s+is\s+(.+)", "girlfriend"),
+            (r"(?:my\s+)?(?:boyfriend|bf)(?:'s\s+name)?\s+is\s+(.+)", "boyfriend"),
+            (r"(?:my\s+)?(?:wife|spouse)(?:'s\s+name)?\s+is\s+(.+)", "wife"),
+            (r"(?:my\s+)?husband(?:'s\s+name)?\s+is\s+(.+)", "husband"),
+            (r"(?:my\s+)?brother(?:'s\s+name)?\s+is\s+(.+)", "brother"),
+            (r"(?:my\s+)?sister(?:'s\s+name)?\s+is\s+(.+)", "sister"),
+            (r"(?:my\s+)?friend(?:'s\s+name)?\s+is\s+(.+)", "friend"),
+        ]
+        
+        for pattern, rel_type in relationship_patterns:
+            match = re.search(pattern, content_lower)
+            if match:
+                name = match.group(1).strip().title()
+                # Store in relationships
+                if "relationships" not in self.memory.long_term:
+                    self.memory.long_term["relationships"] = {}
+                self.memory.long_term["relationships"][name] = {
+                    "type": rel_type,
+                    "details": f"User's {rel_type}",
+                    "last_interaction": __import__("datetime").datetime.now().isoformat()
+                }
+                self.memory.save_memory()
+                return f"I've memorized that your {rel_type}'s name is {name}."
+        
+        # Check for birthday pattern
+        birthday_match = re.search(r"(?:my\s+)?birthday\s+is\s+(.+)", content_lower)
+        if birthday_match:
+            birthday = birthday_match.group(1).strip()
+            if "personal_history" not in self.memory.long_term:
+                self.memory.long_term["personal_history"] = []
+            # Update or add birthday
+            for event in self.memory.long_term["personal_history"]:
+                if event.get("type") == "birthday":
+                    event["description"] = f"My birthday is {birthday}"
+                    self.memory.save_memory()
+                    return f"Updated your birthday to {birthday}."
+            self.memory.long_term["personal_history"].append({
+                "type": "birthday",
+                "description": f"My birthday is {birthday}",
+                "date": birthday
+            })
+            self.memory.save_memory()
+            return f"I've memorized that your birthday is {birthday}."
+        
+        # Default: use memory_manager for general facts
+        try:
+            from .memory.entries import MemoryType
+            result = self.memory_manager.propose_write(content, MemoryType.LONG_TERM, confidence=1.0)
+            return result.get("message", f"Memorized: {content}")
+        except Exception as e:
+            # Fallback: store in general facts
+            if "facts" not in self.memory.long_term:
+                self.memory.long_term["facts"] = {"general": []}
+            self.memory.long_term["facts"]["general"].append(content)
+            self.memory.save_memory()
+            return f"I've memorized: {content}"
+
 
     def _handle_memory_read(self, query=None, **kwargs):
         """Handle memory retrieval requests"""
-        if not query: return "What do you want me to recall?"
-        results = self.memory_manager.retrieve(query)
-        if results:
-            # Format top result for speech
-            top = results[0]
-            return f"I remember: {top.content}"
+        if not query: 
+            query = kwargs.get("text", "")
+        if not query:
+            return "What do you want me to recall?"
+        
+        query_lower = query.lower()
+        
+        # Check for relationship queries first (most common)
+        if "relationship" in query_lower or "father" in query_lower or "mother" in query_lower or "friend" in query_lower or "girlfriend" in query_lower or "brother" in query_lower or "sister" in query_lower:
+            # Search in relationships from memory.json
+            for name, info in self.memory.long_term.get("relationships", {}).items():
+                rel_type = info.get("type", "").lower()
+                if rel_type in query_lower or name.lower() in query_lower:
+                    return f"Your {rel_type} is {name}. {info.get('details', '')}"
+        
+        # Check for event queries (birthday, anniversary, etc.)
+        if "event" in query_lower or "birthday" in query_lower or "anniversary" in query_lower:
+            for event in self.memory.long_term.get("personal_history", []):
+                if event.get("type", "").lower() in query_lower or any(word in event.get("description", "").lower() for word in query_lower.split()):
+                    return f"Your {event.get('type', 'event')}: {event.get('description')} on {event.get('date', 'unknown date')}"
+        
+        # Try semantic search via memory_manager
+        try:
+            results = self.memory_manager.retrieve(query)
+            if results:
+                top = results[0]
+                return f"I remember: {top.content}"
+        except Exception as e:
+            print(f"Memory search error: {e}")
+        
+        # Fallback: check user_info
+        user_info = self.memory.long_term.get("user_info", {})
+        for key, val in user_info.items():
+            if key.lower() in query_lower:
+                return f"Your {key} is {val}"
+        
         return f"I couldn't recall anything about '{query}'."
+
 
     def _handle_memory_forget(self, content=None, **kwargs):
         """Handle forget requests"""
         target = content
         if not target: return "What should I forget?"
         return f"I will forget about '{target}'. (Implementation pending integration)"
+
+    def _handle_media_control(self, **kwargs):
+        """Handle media control intents - routes to appropriate media action"""
+        command = kwargs.get("command", "").lower()
+        text = kwargs.get("text", "").lower()
+        
+        # Check both command slot and original text for keywords
+        combined = f"{command} {text}"
+        
+        if "stop" in combined:
+            return media_actions.stop_music()
+        if "pause" in combined:
+            return media_actions.pause_music()
+        if "next" in combined or "skip" in combined:
+            return media_actions.next_track()
+        if "previous" in combined or "prev" in combined or "back" in combined:
+            return media_actions.previous_track()
+        if "play" in combined or "resume" in combined:
+            return media_actions.play_music()
+        
+        # Default to toggle play/pause
+        return media_actions.play_music()
+
 
     def route(self, text):
         print(f"User Input: {text}")

@@ -29,11 +29,14 @@ def set_alarm(time_str):
     t.start()
     return f"Alarm set for {time_str}"
 
-def create_reminder(text, time_str=None):
-    # Simple reminder implementation
-    print(f"Reminder set: {text} at {time_str}")
-    # TODO: Persist reminders to a file or DB
-    return f"Reminder set: {text}"
+def create_reminder(text=None, task=None, time_str=None, **kwargs):
+    """Simple reminder implementation - accepts both 'text' and 'task' for NLU compatibility"""
+    reminder_text = text or task or kwargs.get("content", "")
+    if not reminder_text:
+        return "I didn't catch what you wanted me to remind you about."
+    print(f"Reminder set: {reminder_text} at {time_str}")
+    return f"Reminder set: {reminder_text}"
+
 
 def todo_add(item):
     print(f"Adding to TODO: {item}")

@@ -87,6 +87,35 @@ class NLUEngine:
             (r"(?:take\s+a?)?\s*screenshot", IntentType.SYSTEM_CONTROL, lambda m: {"command": "screenshot"}),
             
             # ═══════════════════════════════════════════════════════════
+            # CONNECTIVITY - WiFi, Bluetooth, Hotspot
+            # More flexible patterns to handle speech variations and Whisper mishearing
+            # ═══════════════════════════════════════════════════════════
+            
+            # WiFi patterns - connect/enable/turn on (handles "system wifi", "my wifi", "the wifi")
+            (r"(?:turn\s+on|enable|connect(?:\s+to)?|activate)\s+(?:the\s+|my\s+|system\s+)?(?:wi-?fi|wifi|wireless|internet)", IntentType.SYSTEM_WIFI_CONNECT, lambda m: {}),
+            (r"(?:wi-?fi|wifi|wireless)\s+(?:on|connect|enable)", IntentType.SYSTEM_WIFI_CONNECT, lambda m: {}),
+            # WiFi patterns - disconnect/disable/turn off (including typo "turn of")
+            (r"(?:turn\s+of{1,2}|disable|disconnect)\s+(?:the\s+|my\s+|system\s+)?(?:wi-?fi|wifi|wireless|internet)", IntentType.SYSTEM_WIFI_DISCONNECT, lambda m: {}),
+            (r"(?:wi-?fi|wifi|wireless)\s+(?:off|disconnect|disable)", IntentType.SYSTEM_WIFI_DISCONNECT, lambda m: {}),
+            
+            # Bluetooth patterns (handles variations)
+            (r"(?:turn\s+on|enable|activate|connect)\s+(?:the\s+|my\s+)?bluetooth", IntentType.SYSTEM_BLUETOOTH, lambda m: {"state": "on"}),
+            (r"bluetooth\s+(?:on|enable|connect)", IntentType.SYSTEM_BLUETOOTH, lambda m: {"state": "on"}),
+            (r"(?:turn\s+of{1,2}|disable|disconnect)\s+(?:the\s+|my\s+)?bluetooth", IntentType.SYSTEM_BLUETOOTH, lambda m: {"state": "off"}),
+            (r"bluetooth\s+(?:off|disable|disconnect)", IntentType.SYSTEM_BLUETOOTH, lambda m: {"state": "off"}),
+            
+            # Hotspot patterns - including Whisper mishearing "hard spot" for "hotspot"
+            (r"(?:turn\s+on|enable|start|activate|create)\s+(?:the\s+|my\s+|mobile\s+)?(?:hot\s*spot|hard\s*spot|hotspot)", IntentType.SYSTEM_HOTSPOT, lambda m: {"state": "on"}),
+            (r"(?:hot\s*spot|hotspot)\s+(?:on|enable|start)", IntentType.SYSTEM_HOTSPOT, lambda m: {"state": "on"}),
+            (r"(?:turn\s+of{1,2}|disable|stop)\s+(?:the\s+|my\s+|mobile\s+)?(?:hot\s*spot|hard\s*spot|hotspot)", IntentType.SYSTEM_HOTSPOT, lambda m: {"state": "off"}),
+            (r"(?:hot\s*spot|hotspot)\s+(?:off|disable|stop)", IntentType.SYSTEM_HOTSPOT, lambda m: {"state": "off"}),
+            
+            # Recycle bin
+            (r"(?:empty|clear|clean)\s+(?:the\s+)?(?:recycle\s*bin|trash|dustbin)", IntentType.SYSTEM_RECYCLE_BIN, lambda m: {}),
+            
+
+
+            # ═══════════════════════════════════════════════════════════
             # APPLICATION CONTROL  
             # ═══════════════════════════════════════════════════════════
             (r"(open|launch|start|run)\s+(.+)", IntentType.SYSTEM_OPEN_APP, lambda m: {"app_name": normalize_app_name(m.group(2))}),
@@ -102,9 +131,34 @@ class NLUEngine:
             # ═══════════════════════════════════════════════════════════
             # MEMORY OPERATIONS
             # ═══════════════════════════════════════════════════════════
-            (r"(?:remember|memorize|note|save)\s+(?:that\s+)?(.+)", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1)}),
+            # MEMORY_WRITE - remembering things
+            # Pattern for "my X is Y" style (captures the whole statement)
+            (r"(?:my\s+)?(?:father|mother|dad|mom|brother|sister|friend|girlfriend|boyfriend|wife|husband)(?:'s\s+name)?\s+is\s+(.+?)(?:,?\s*(?:kindly\s+)?(?:memorize|remember|note).*)?$", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(0).split(",")[0].strip()}),
+            (r"(?:my\s+)?birthday\s+is\s+(.+?)(?:,?\s*(?:kindly\s+)?(?:memorize|remember|note).*)?$", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(0).split(",")[0].strip()}),
+            # Standard patterns - "remember that X"
+            (r"(?:remember|memorize|note|save|store|keep in mind)\s+that\s+(.+)", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1)}),
+            (r"(?:remember|memorize|note|save|store)\s+(?!it\b|this\b|that\b)(.+)", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1)}),
+            (r"(?:i want you to|please)\s+(?:remember|memorize)\s+(?:that\s+)?(.+)", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1)}),
+            # "X, kindly memorize it" - capture full sentence by flagging for full text extraction
+            (r"(.+?),?\s*(?:kindly\s+)?(?:memorize|remember)\s+(?:it|this|that)\.?$", IntentType.MEMORY_WRITE, lambda m: {"content": m.group(1), "use_full": True}),
+
+            
+            # MEMORY_READ - recalling things
             (r"(?:what|do you)\s+(?:do you\s+)?(?:know|remember)\s+(?:about\s+)?(.+)", IntentType.MEMORY_READ, lambda m: {"query": m.group(1)}),
-            (r"(?:forget|erase|delete)\s+(?:about\s+)?(?:the\s+)?(?:memory|fact|info)(?:\s+(?:about|of))?\s*(.+)?", IntentType.MEMORY_FORGET, lambda m: {"content": m.group(1) or ""}),
+            (r"(?:recall|retrieve|tell me about|what about)\s+(.+)", IntentType.MEMORY_READ, lambda m: {"query": m.group(1)}),
+            (r"what(?:'s| is)\s+my\s+(.+)", IntentType.MEMORY_READ, lambda m: {"query": f"my {m.group(1)}"}),
+            (r"(?:what did i|did i)\s+(?:tell|say)\s+(?:you\s+)?(?:about\s+)?(.+)", IntentType.MEMORY_READ, lambda m: {"query": m.group(1)}),
+            # Relationship queries - "who is my father/mother/friend"
+            (r"who\s+(?:is|are)\s+(?:my\s+)?(.+)", IntentType.MEMORY_READ, lambda m: {"query": f"relationship {m.group(1)}"}),
+            (r"(?:do you know|can you tell me)\s+(?:who\s+)?(?:is\s+)?my\s+(.+)", IntentType.MEMORY_READ, lambda m: {"query": f"relationship {m.group(1)}"}),
+            # Event queries - "when is my birthday"
+            (r"when\s+(?:is|was)\s+(?:my\s+)?(.+)", IntentType.MEMORY_READ, lambda m: {"query": f"event {m.group(1)}"}),
+            
+            # MEMORY_FORGET - forgetting things
+            (r"(?:forget|erase|delete)\s+(?:about\s+)?(?:the\s+)?(?:memory|fact|info)?(?:\s+(?:about|of))?\s*(.+)?", IntentType.MEMORY_FORGET, lambda m: {"content": m.group(1) or ""}),
+            (r"(?:don't|do not)\s+remember\s+(?:that|about)?\s*(.+)?", IntentType.MEMORY_FORGET, lambda m: {"content": m.group(1) or ""}),
+
+
             
             # ═══════════════════════════════════════════════════════════
             # VISION & SCREEN (Order matters! Screen patterns first)
@@ -157,6 +211,14 @@ class NLUEngine:
             (r"(?:what's|whats|what is|get|tell me)(?:\s+(?:the|latest)){0,2}\s+(?:news|headlines)", IntentType.WEB_NEWS, lambda m: {}),
             (r"(?:what's|whats|what is|check)(?:\s+(?:the|today's)){0,2}\s+weather", IntentType.WEB_WEATHER, lambda m: {}),
             (r"(?:deep\s+research|research|deep\s+dive|analyze|summary|summarize)(?:\s+on)?\s+(.+)", IntentType.WEB_RESEARCH, lambda m: {"topic": m.group(1)}),
+
+            # ═══════════════════════════════════════════════════════════
+            # MEDIA CONTROL (Previously Missing)
+            # ═══════════════════════════════════════════════════════════
+            (r"(?:play|resume)(?:\s+(?:the|my|some)){0,2}\s*(?:music|song|audio|track|playback)?", IntentType.MEDIA_CONTROL, lambda m: {"command": "play"}),
+            (r"(?:pause|stop)(?:\s+(?:the|my)){0,2}\s*(?:music|song|audio|track|playback)?", IntentType.MEDIA_CONTROL, lambda m: {"command": m.group(0).split()[0]}),
+            (r"(?:next|skip)(?:\s+(?:this|the)){0,2}\s*(?:track|song)?", IntentType.MEDIA_CONTROL, lambda m: {"command": "next"}),
+            (r"(?:previous|prev|go\s+back)(?:\s+(?:to|the)){0,2}\s*(?:track|song)?", IntentType.MEDIA_CONTROL, lambda m: {"command": "previous"}),
 
             # ═══════════════════════════════════════════════════════════
             # TASK MANAGEMENT & PRODUCTIVITY

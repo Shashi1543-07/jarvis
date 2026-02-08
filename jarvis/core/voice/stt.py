@@ -5,23 +5,45 @@ from .audio_preprocessor import AudioPreprocessor
 
 
 class SpeechToTextEngine:
-    def __init__(self, model_size="base.en", device=None, compute_type=None):
+    def __init__(self, model_size="small.en", device=None, compute_type=None):
         """
         Initialize Faster Whisper with GPU acceleration support.
+        Using small.en for better accuracy - downloads ~460MB on first run.
         """
         import torch
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         if compute_type is None:
             compute_type = "float16" if device == "cuda" else "int8"
-            
+        
+        self.model = None
+        self.device = device
+        
         print(f"Loading Whisper model: {model_size} on {device} ({compute_type})...")
+        
         try:
+            # Clear GPU cache before loading to prevent memory issues
+            if device == "cuda":
+                torch.cuda.empty_cache()
+            
             self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-            print(f"Whisper model loaded on {device}.")
+            print(f"Whisper {model_size} loaded successfully on {device}.")
+            
         except Exception as e:
-            print(f"Error loading Whisper: {e}")
-            self.model = None
+            print(f"Error loading Whisper {model_size}: {e}")
+            # If CUDA fails, try CPU as fallback
+            if device == "cuda":
+                print("Trying CPU fallback for Whisper...")
+                try:
+                    torch.cuda.empty_cache()
+                    self.model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                    print(f"Whisper {model_size} loaded on CPU (fallback).")
+                except Exception as e2:
+                    print(f"CPU fallback failed: {e2}")
+        
+        if self.model is None:
+            print("CRITICAL: STT model failed to load!")
+
 
         # Audio preprocessing
         self.preprocessor = AudioPreprocessor(target_sample_rate=16000)
@@ -78,11 +100,13 @@ class SpeechToTextEngine:
                 wf.writeframes(processed_audio)
 
             print("STT: Running Whisper transcription...")
+            # Use better beam size and initial prompt for command recognition
             segments, info = self.model.transcribe(
                 self.temp_filename,
-                beam_size=1,             # Faster inference
+                beam_size=5,             # Better accuracy (was 1)
                 language="en",
-                condition_on_previous_text=False
+                condition_on_previous_text=False,
+                initial_prompt="Hey Jarvis, turn on wifi, turn off bluetooth, enable hotspot, open chrome, set volume, set brightness"  # Bias towards common commands
             )
             text = " ".join([segment.text for segment in segments]).strip()
 
@@ -105,9 +129,10 @@ class SpeechToTextEngine:
         try:
             segments, info = self.model.transcribe(
                 audio_data,
-                beam_size=1,
+                beam_size=5,
                 language="en",
-                condition_on_previous_text=False
+                condition_on_previous_text=False,
+                initial_prompt="Hey Jarvis, turn on wifi, turn off bluetooth, enable hotspot, open chrome"
             )
             text = " ".join([segment.text for segment in segments])
             return text.strip()

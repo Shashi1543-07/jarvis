@@ -286,10 +286,57 @@ class JarvisGUI(QMainWindow):
         })
         
     def handle_gui_command(self, cmd):
-        """Handle text command from UI"""
+        """Handle text command from UI - routes through engine"""
         print(f"GUI: Executing command: {cmd}")
-        # Here we could pass it to the engine as text input if implemented
-        # For now, just log it
+        
+        if not cmd or not cmd.strip():
+            return
+            
+        # Show user message in UI
+        self.ws_server.broadcast({
+            "type": "chat",
+            "sender": "USER",
+            "message": cmd
+        })
+        
+        if self.engine:
+            try:
+                # Route through the engine's router
+                response = self.engine.router.route(cmd)
+                
+                # Extract text response
+                if isinstance(response, dict):
+                    text = response.get("text", response.get("message", str(response)))
+                else:
+                    text = str(response)
+                
+                # Broadcast Jarvis response
+                self.ws_server.broadcast({
+                    "type": "chat",
+                    "sender": "JARVIS",
+                    "message": text
+                })
+                
+                # Speak the response if TTS is available
+                if hasattr(self.engine, 'tts_engine') and self.engine.tts_engine:
+                    self.engine.tts_engine.speak(text)
+                    
+            except Exception as e:
+                error_msg = f"Error processing command: {e}"
+                print(f"GUI: {error_msg}")
+                self.ws_server.broadcast({
+                    "type": "chat",
+                    "sender": "JARVIS",
+                    "message": f"I encountered an issue: {str(e)}"
+                })
+        else:
+            # No engine - just echo back
+            self.ws_server.broadcast({
+                "type": "chat",
+                "sender": "JARVIS",
+                "message": "Engine not connected. Running in standalone mode."
+            })
+
         
     def closeEvent(self, event):
         print("GUI: Closing...")

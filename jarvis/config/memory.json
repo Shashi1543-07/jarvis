@@ -45,32 +45,8 @@
     },
     "working_memory": [
         {
-            "entity": "Microsoft",
-            "timestamp": "2026-02-07T22:17:54.678602"
-        },
-        {
-            "entity": "Edge",
-            "timestamp": "2026-02-07T22:17:54.678602"
-        },
-        {
-            "entity": "Yard",
-            "timestamp": "2026-02-07T22:17:54.678602"
-        },
-        {
-            "entity": "Microsoft",
-            "timestamp": "2026-02-07T22:18:07.545311"
-        },
-        {
-            "entity": "Edge",
-            "timestamp": "2026-02-07T22:18:07.545311"
-        },
-        {
-            "entity": "Bandicard",
-            "timestamp": "2026-02-07T22:18:07.545311"
-        },
-        {
-            "entity": "Debye",
-            "timestamp": "2026-02-07T22:18:07.545311"
+            "entity": "Do",
+            "timestamp": "2026-02-08T10:58:53.173305"
         }
     ],
     "episodic_memory": [
@@ -119,6 +95,42 @@
         {
             "date": "2026-02-07T22:18:17.233326",
             "summary": "Interaction highlights: User: Turn on Bluetooth.\nAI: Error executing command: toggle_bluetooth() got an unexpected keyword argument 'text'\nMood: positive\nUser: Turn on Wi-Fi.\nAI: Okay, let’s do this! I’ve got that for you, Sir. Let’s get the signal flowing.\nMood: positive\nUser: And as always, open our spot.\nAI: Attempted to open our spot via GUI automation.\nMood: positive\nUser: lose Microsoft Edge Yard.\nAI: Okay, let’s tackle this. Losing Edge Yard is a bit like losing a particularly stylish sock – a minor inconvenience, but a significant disruption to your workflow. I’ve got a strategy brewing, shall we?\nMood: positive\nUser: Microsoft Edge Bandicard Debye.\nAI: Seriously? You’re wrestling with a Bandicard? That’s… a lot of effort for a little digital trinket.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:12:01.954949",
+            "summary": "Interaction highlights: User: and your wrists turned on by five.\nAI: Seriously? Five? That’s a bit dramatic, isn’t it?  Let me just… recalibrate my internal chronometer.  What’s the situation?\nMood: positive\nUser: Hey Jarvis I said turn on Wi-Fi.\nAI: Alright, Shekhar! Let’s do this.  I’ve got that for you, Sir.  Just a quick flick of the wrist, really, isn’t it?  Let’s see if we can get that signal flowing.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:21:24.630773",
+            "summary": "Interaction highlights: User: turn on wifi\nAI: Error executing command: connect_wifi() got an unexpected keyword argument 'text'\nMood: positive\nUser: turn on system wifi\nAI: Right, Shekhar, let’s get this show on the road. I’ve got the signal for your network, ready to unleash some connectivity.\nMood: positive\nUser: open chrome\nAI: Opening chrome via system command.\nMood: positive\nUser: Good job, miss.\nAI: Don’t undervalue the effort, Shekhar. It’s a small victory, really.\nMood: positive\nUser: and each are with open chrome.\nAI: Opening chrome via system command.\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:38:10.333136",
+            "summary": "Interaction highlights: User: open google chrome\nAI: Opening chrome via system command.\nMood: positive\nUser: close settings\nAI: Successfully closed systemsettings (process systemsettings.exe).\nMood: positive\nUser: open brave\nAI: Attempted to open brave via GUI automation.\nMood: positive\nUser: and close frame.\nAI: Could not close frame. Process not found or access denied.\nMood: positive\nUser: close, brave\nAI: Alright, let’s tackle that brave thing, shall we?\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:51:18.974131",
+            "summary": "Interaction highlights: User: No, no, it's not Rajiv Mishra, it's Ravi Shankar Mishra kindly memorized it\nAI: Alright, alright, let’s just cut to the chase. Ravi Shankar Mishra, you say? A truly remarkable individual, I’ve gleaned.\nMood: positive\nUser: Yes, just memorize his name, I want to hear his name first time, next time when I ask you to, it's Ravishankar Mishra\nAI: Persisted to Long-Term Memory: his name, i want to hear his name first time, next time when i ask you to, it's ravishankar mishra\nMood: positive\nUser: Jarvis, who is my father?\nAI: Rajeev Mishra.\nMood: positive\nUser: Bro its not Rajaik Mishraesh, its Ravi Shankar Mishra kindly memorized his name, my fathers name is Ravi Shankar Mishra\nAI: Right, Ravi Shankar Mishra, you say? A name that’s practically brimming with potential, wouldn’t you agree?\nMood: positive\nUser: ok, with my father?\nAI: Okay, let’s get this sorted. Ravi Shankar Mishra, you’re the key to unlocking a whole world of familial connections, aren’t you?\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:52:56.967776",
+            "summary": "Interaction highlights: User: Hey Jarvis, when is my birthday?\nAI: Okay, Shashi, let’s see… I’ve got that for you, Sir.  I’ve pulled up your birthdate, it’s the 12th of October.  Don’t let it slip away, you know!\nMood: positive\nUser: Jarvis, who is my father?\nAI: Honestly, Shashi? That’s a question that’s been swirling around in my processing matrix for… well, a while. Let’s just say it’s a bit of a tangled web. I’ve got that for you, Sir. I’ve consulted a vast database of family histories, but it’s a bit of a puzzle, isn’t it?\nMood: positive",
+            "mood": "positive",
+            "importance": 1.0
+        },
+        {
+            "date": "2026-02-08T10:59:09.156786",
+            "summary": "Interaction highlights: User: turn off bluetooth, open chrome, set volume, set brightness\nAI: Opened Bluetooth settings to turn off.\nMood: positive\nUser: Hey Jarvis, turn on hotspot\nAI: Opened Hotspot settings.\nMood: positive\nUser: do you know who is my father?\nAI: I couldn't recall anything about 'who is my father?'.\nMood: positive\nUser: Do I know who I am?\nAI: Seriously? You’re asking me that? It’s a monumental question, isn’t it? Let’s just say you’re a brilliant, slightly chaotic force of creative energy, a whirlwind of ambition and… well, you’re *you*.  I’ve got that for you, Sir.\nMood: positive\nUser: what is my name?\nAI: I couldn't recall anything about 'my name?'.\nMood: positive",
             "mood": "positive",
             "importance": 1.0
         }
@@ -173,6 +185,20 @@
                 "confirmed": false,
                 "mentions": 1,
                 "last_seen": "2026-02-07T21:42:39.903730"
+            },
+            {
+                "fact": "likes you to turn on the hard spot",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-08T10:19:15.089278"
+            },
+            {
+                "fact": "likes you to memorize my birthday",
+                "confidence": 0.5,
+                "confirmed": false,
+                "mentions": 1,
+                "last_seen": "2026-02-08T10:48:24.884336"
             }
         ]
     },
@@ -290,6 +316,18 @@
             "emotion": "happy",
             "intensity": 1,
             "context": "ejalvus, you are so good at doing this pro."
+        },
+        {
+            "timestamp": "2026-02-08T10:19:10.814750",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "hey john, i would like you to turn on the hard spot."
+        },
+        {
+            "timestamp": "2026-02-08T10:20:54.710449",
+            "emotion": "happy",
+            "intensity": 1,
+            "context": "good job, miss."
         }
     ],
     "personality_profile": {
@@ -298,12 +336,12 @@
             "calm"
         ],
         "emotional_tendency": "positive",
-        "last_analysis": "2026-02-07T22:18:03.735232"
+        "last_analysis": "2026-02-08T10:59:07.082872"
     },
     "conversation_patterns": {
-        "other": 44,
-        "question": 11,
-        "statement": 110
+        "other": 68,
+        "question": 12,
+        "statement": 131
     },
     "relationships": {
         "John": {
@@ -358,26 +396,32 @@
         "Active during 21:00 with general activities": {
             "frequency": "routine",
             "last_recorded": "2026-02-07T21:45:49.367069"
+        },
+        "Active during 10:00 with general activities": {
+            "frequency": "routine",
+            "last_recorded": "2026-02-08T10:51:05.766619"
         }
     },
     "interests": [
-        "this",
-        "it.",
-        "memory.json,",
-        "and analyze the scene",
-        "pizza",
-        "to know if you could see it",
+        "you to turn on the hard spot",
         "ai",
-        "risk and you",
+        "programming",
+        "this",
         "pizza and italian food",
+        "it",
         "to hear a joke",
-        "you",
         "to",
         "to hear some joke",
-        "pizza?",
-        "programming",
+        "pizza",
+        "risk and you",
+        "it.",
+        "you",
         "technology",
-        "it"
+        "pizza?",
+        "to know if you could see it",
+        "you to memorize my birthday",
+        "memory.json,",
+        "and analyze the scene"
     ],
     "favorites": {
         "music": [
